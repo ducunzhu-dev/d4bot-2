@@ -1,0 +1,27 @@
+# D4 Bot Configuration - Paladin S13
+# 审判连锁爆炸流 (Judgment Chain Explosion)
+# 最易成型，T120以下通吃
+apptitle: Diablo IV
+class: Paladin
+
+# Key bindings
+# Rotation: 左键→2→3→走两圈→4引爆 (精英先1挂易伤)
+evade: space
+pot: q
+skill1: "1"    # 天堂之矛 - 挂易伤
+skill2: "2"    # 圣光光环 - 审判仪式
+skill3: "3"    # 天罚 - 持续上审判
+skill4: "4"    # 审判者誓言 - 主动引爆
+
+# Left click: 圣光箭 (bouncing, applies judgment)
+# Right click: 祝福之盾 (detonation + shatter)
+
+# Screen
+resolution: 1920x1080
+fullscreen: windowed
+
+# Features
+loot_enabled: true
+fight_enabled: true
+move_enabled: true
+helltide_enabled: true

@@ -1,0 +1,72 @@
+# 雕文升级优先序 — 梦魇地城后自动升级
+# 数字越小优先级越高
+
+glyphs:
+  barbarian:
+    - name: exploit
+      priority: 1
+      notes: "易伤触发"
+    - name: wrath
+      priority: 2
+      notes: "怒气生成"
+    - name: territorial
+      priority: 3
+      notes: "近战减伤"
+    - name: undaunted
+      priority: 4
+      notes: "强固增伤"
+    - name: crusher
+      priority: 5
+      notes: "双手锤增伤"
+    - name: might
+      priority: 6
+      notes: "力量%增伤"
+    - name: bloodfeeder
+      priority: 7
+      notes: "流血增伤"
+    - name: mortal_draw
+      priority: 8
+      notes: "武器切换暴击"
+    - name: ire
+      priority: 9
+      notes: "狂暴增伤"
+    - name: challenger
+      priority: 10
+      notes: "战吼回血"
+    - name: seething
+      priority: 11
+      notes: "狂暴时间延长"
+    - name: rumble
+      priority: 12
+      notes: "地震增伤"
+
+  paladin:
+    - name: exploit
+      priority: 1
+      notes: "易伤触发"
+    - name: spirit
+      priority: 2
+      notes: "暴击几率"
+    - name: territorial
+      priority: 3
+      notes: "近战减伤"
+    - name: undaunted
+      priority: 4
+    - name: crusher
+      priority: 5
+    - name: might
+      priority: 6
+    - name: judgement
+      priority: 7
+      notes: "审判增伤"
+    - name: consecration
+      priority: 8
+      notes: "奉献范围"
+    - name: zeal
+      priority: 9
+    - name: ire
+      priority: 10
+    - name: challenger
+      priority: 11
+    - name: protector
+      priority: 12

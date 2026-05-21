@@ -1,0 +1,64 @@
+# 圣骑士(审判连锁爆炸流) 威能词典 — D4 S13
+
+aspects:
+  # === S级 (85+) ===
+  aspect_of_judgment: 92           # 审判威能 — BD核心
+  aspect_of_chain_reaction: 90     # 连锁反应 — 爆炸核心
+  aspect_of_consecration: 87       # 奉献威能 — 地面增伤
+  aspect_of_divine_retribution: 85 # 天谴 — 审判引爆核心
+  aspect_of_the_expectant: 85      # 期待威能
+
+  # === A级 (70-84) ===
+  aspect_of_holy_bolt: 82          # 圣光箭 — 弹射审判
+  aspect_of_blessed_shield: 80     # 祝福之盾 — 弹射引爆
+  aspect_of_heavenly_spear: 78     # 天堂之矛 — 易伤起手
+  aspect_of_divine_judgment: 80    # 神圣审判
+  aspect_of_hallowed_ground: 76    # 圣洁之地
+  aspect_of_zeal: 78               # 狂热 — 攻速
+  aspect_of_righteous_fury: 75     # 正义之怒
+  aspect_of_holy_wrath: 74         # 神圣愤怒
+  aspect_of_penitent_armor: 72     # 忏悔护甲
+  aspect_of_consecrated_strikes: 73 # 祝圣打击
+  aspect_of_the_protector: 73
+  aspect_of_disobedience: 82       # 不服从（防御通用）
+  aspect_of_might: 80              # 力量
+
+  # === B级 (<70) ===
+  aspect_of_inner_calm: 65
+  concentration_aspect: 60
+  rapid_aspect: 65
+  ghostwalker_aspect: 68
+  aspect_of_shared_misery: 65
+  needleflare_aspect: 62
+  eluding_aspect: 55
+  conceited_aspect: 62
+  aspect_of_retribution: 58
+  aspect_of_audacity: 58
+  aspect_of_assimilation: 50
+  aspect_of_adaptability: 55
+
+uniques:
+  - heavens_fury
+  - judgment_plate
+  - shield_of_zakarum
+  - sword_of_justice
+  - crown_of_the_righteous
+  - gauntlets_of_judgment
+  - the_grandfather
+  - doombringer
+  - tyraels_might
+  - harlequin_crest
+  - starless_skies
+
+affix_priority:
+  - dexterity
+  - critical_strike_chance
+  - attack_speed
+  - critical_strike_damage
+  - damage_to_close_enemies
+  - cooldown_reduction
+  - vulnerable_damage
+  - damage_over_time
+  - all_stats
+  - maximum_life
+  - armor_percent

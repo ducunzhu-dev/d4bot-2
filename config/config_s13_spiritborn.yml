@@ -1,0 +1,23 @@
+# D4 Bot Configuration - Spiritborn (S13)
+# Copy to game laptop, edit paths as needed
+
+apptitle: Diablo IV
+class: Spiritborn
+
+# Key bindings (match your in-game settings)
+evade: space
+pot: q
+skill1: "1"
+skill2: "2"
+skill3: "3"
+skill4: "4"
+
+# Screen settings
+resolution: 1920x1080
+fullscreen: windowed
+
+# Behavior
+loot_enabled: true
+fight_enabled: true
+move_enabled: true
+helltide_enabled: true

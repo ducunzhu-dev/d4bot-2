@@ -1,0 +1,85 @@
+# 野蛮人威能词典 — D4 S13
+# 评分 0-100：85+ = S级必留 / 70-84 = A级保留 / <70 = 提取后拆
+
+aspects:
+  # === S级 (85+) — 核心BD威能 ===
+  aspect_of_disobedience: 90       # 不服从威能 — 叠甲核心
+  accelerating_aspect: 88          # 加速威能 — 攻速核心
+  aspect_of_might: 85              # 力量威能 — 基础减伤
+  aspect_of_the_expectant: 85      # 期待威能 — 基础技能增伤
+  edgemasters_aspect: 87           # 剑圣威能 — 满怒增伤
+  
+  # === A级 (70-84) — 构筑填充 ===
+  aspect_of_berserk_ripping: 80    # 撕裂威能 — 流血联动
+  aspect_of_ancestral_echoes: 78   # 先祖回响 — 先祖锤核心
+  aspect_of_limitless_rage: 82     # 无尽怒火 — 旋风斩核心
+  aspect_of_the_dire_whirlwind: 80 # 恐怖旋风 — 暴击触发
+  aspect_of_grasping_whirlwind: 75 # 牵引旋风 — 聚怪
+  aspect_of_numbing_wrath: 78      # 麻木怒火 — 怒气回血
+  bold_chieftains_aspect: 82       # 酋长威能 — 战吼减CD
+  echoing_fury_aspect: 78          # 回音之怒 — 战吼加怒
+  aspect_of_ancestral_force: 76    # 先祖之力 — 先祖锤增伤
+  earthquake_aspect: 75            # 地震威能 — 地裂清场
+  aspect_of_bul_kathos: 77         # 布尔凯索 — 跃击增伤
+  aspect_of_giant_strides: 74      # 大步流星 — 跃击减CD
+  aspect_of_burning_rage: 72       # 燃烧怒火 — 火伤光环
+  iron_warrior_aspect: 74          # 铁甲战士 — 铁皮减伤
+  aspect_of_the_iron_warrior: 74   # 同上
+  aspect_of_the_protector: 73      # 保护者 — 护盾
+  aspect_of_shared_misery: 70      # 共苦 — 控场扩散
+  
+  # === B级 (<70) — 过渡/分解 ===
+  aspect_of_inner_calm: 65         # 内心平静 — 站桩增伤
+  aspect_of_the_umbral: 68         # 暗影 — 控场回怒
+  concentration_aspect: 60         # 专注威能
+  conceited_aspect: 62             # 自负威能 — 有盾增伤
+  aspect_of_retribution: 58        # 报应威能 — 击晕增伤
+  rapid_aspect: 65                 # 急速威能 — 基本技能攻速
+  aspect_of_adaptability: 55       # 适应威能
+  dust_devils_aspect: 60           # 沙尘暴威能
+  windlasher_aspect: 58            # 风鞭威能
+  
+  # === 通用威能 ===
+  ghostwalker_aspect: 68           # 鬼行者 — 跑速/穿怪
+  aspect_of_the_crowded_sage: 60   # 群贤 — 近身回血
+  eluding_aspect: 55               # 闪避威能
+  needleflare_aspect: 62           # 针刺
+  aspect_of_audacity: 58           # 胆量
+  aspect_of_assimilation: 50       # 同化
+
+# 独有装备(Unique) — 每种存一件最高装等
+uniques:
+  - tuskhelm_of_joritz_the_mighty
+  - rage_of_harrogath
+  - gohrs_devastating_grips
+  - hundred_thousand_steps
+  - battle_trance
+  - ancient_oath
+  - overkill
+  - hellhammer
+  - fields_of_crimson
+  - ring_of_red_furor
+  - ring_of_the_ravenous
+  - arreats_bearing
+  - the_grandfather
+  - doombringer
+  - tyraels_might
+  - harlequin_crest
+  - andariels_visage
+  - starless_skies
+  - melted_heart_of_selig
+
+# 词缀偏好优先级 — 用于稀有装备筛选
+affix_priority:
+  - strength               # 力量
+  - critical_strike_chance  # 暴击几率
+  - critical_strike_damage  # 暴击伤害
+  - vulnerable_damage       # 易伤伤害
+  - cooldown_reduction      # 冷却缩减
+  - maximum_fury            # 最大怒气
+  - attack_speed            # 攻击速度
+  - overpower_damage        # 压制伤害
+  - damage_while_berserking # 狂暴伤害
+  - all_stats               # 全属性
+  - maximum_life            # 最大生命
+  - armor_percent           # 护甲%
