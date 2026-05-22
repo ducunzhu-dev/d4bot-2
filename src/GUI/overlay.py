@@ -1,10 +1,15 @@
+"""
+D4Bot - Unified Control Panel
+Single window for class selection, mode control, calibration, and monitoring.
+"""
 from keyboard import add_hotkey
 from threading import Thread, Lock
 from time import sleep
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QStandardItemModel, QStandardItem
+from PyQt5.QtGui import QIcon, QStandardItemModel, QStandardItem, QFont
 from PyQt5.QtWidgets import (QApplication, QComboBox, QPlainTextEdit, QMainWindow, QGridLayout,
-                             QGroupBox, QPushButton, QHBoxLayout, QStyleFactory, QWidget)
+                             QGroupBox, QPushButton, QHBoxLayout, QVBoxLayout, QLabel,
+                             QStyleFactory, QWidget)
 
 from helper import config_helper, logging_helper, process_helper
 from bot import manager, rotation
@@ -12,9 +17,110 @@ from GUI import toolbox
 
 WINDOW_X = 1425
 WINDOW_Y = 825
-WINDOW_WIDTH = 470
-WINDOW_HEIGHT = 170
+WINDOW_WIDTH = 480
+WINDOW_HEIGHT = 220
 ICON_PATH = './assets/layout/mmorpg_helper.ico'
+
+STYLE = """
+QMainWindow {
+    background-color: #1a1a2e;
+}
+QGroupBox {
+    color: #e0a800;
+    border: 1px solid #3a3a5e;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding-top: 12px;
+    font-weight: bold;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 5px;
+}
+QPushButton {
+    background-color: #2d2d44;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-weight: bold;
+    min-width: 70px;
+}
+QPushButton:hover {
+    background-color: #3d3d5e;
+}
+QPushButton#btnStart {
+    background-color: #1a6b1a;
+    color: white;
+    font-size: 14px;
+    padding: 8px 20px;
+}
+QPushButton#btnStart:hover {
+    background-color: #228b22;
+}
+QPushButton#btnStart:disabled {
+    background-color: #555;
+    color: #999;
+}
+QPushButton#btnStop {
+    background-color: #8b1a1a;
+    color: white;
+    font-size: 14px;
+    padding: 8px 20px;
+}
+QPushButton#btnStop:hover {
+    background-color: #aa2222;
+}
+QComboBox {
+    background-color: #2d2d44;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 3px 8px;
+    min-width: 100px;
+}
+QComboBox::drop-down {
+    border: none;
+}
+QComboBox QAbstractItemView {
+    background-color: #2d2d44;
+    color: white;
+    selection-background-color: #4a4a6e;
+}
+QPlainTextEdit {
+    background-color: rgba(0,0,0,120);
+    color: #aaa;
+    border: 1px solid #3a3a5e;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 11px;
+}
+QLabel#statusLabel {
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 4px;
+}
+QLabel#statusRunning {
+    color: #00ff00;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 4px;
+}
+QLabel#statusPaused {
+    color: #ffaa00;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 4px;
+}
+QLabel#statusStopped {
+    color: #ff4444;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 4px;
+}
+"""
 
 class Overlay(QMainWindow):
     def __init__(self, parent=None):
@@ -24,7 +130,7 @@ class Overlay(QMainWindow):
         self.pause_req = False
         self._log_handler = None
         self.cfg = config_helper.read_config()
-        self.name = self.cfg.get('apptitle', 'notepad')
+        self.name = self.cfg.get('apptitle', 'Diablo IV')
         self.proc = process_helper.ProcessHelper()
         self.robot = manager.Manager()
 
@@ -36,68 +142,149 @@ class Overlay(QMainWindow):
         self.setWindowTitle(self.name)
         self.setGeometry(WINDOW_X, WINDOW_Y, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.setStyleSheet(STYLE)
+
         visible_window = QWidget(self)
         visible_window.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
-        # UI setup
-        self.createDropdownBox()
-        self.createStartBox()
-        self.createToolBox()
+        # === Build UI ===
+        self.createClassSelector()
+        self.createModeSelector()
+        self.createControlButtons()
+        self.createStatusArea()
         self.createLoggerConsole()
 
         mainLayout = QGridLayout()
-        mainLayout.addWidget(self.dropdownBox, 0, 0)
-        mainLayout.addWidget(self.startBox, 0, 1)
-        mainLayout.addWidget(self.toolBox, 0, 2)
-        mainLayout.addWidget(self.loggerConsole, 1, 0, 1, 3)
-        mainLayout.setRowStretch(1, 1)
+        mainLayout.setSpacing(6)
+        # Row 0: [Class Selector] [Mode Selector]
+        mainLayout.addWidget(self.classGroup, 0, 0)
+        mainLayout.addWidget(self.modeGroup, 0, 1)
+        # Row 1: [Start/Stop Buttons + Status + Calibrate/Toolbox]
+        mainLayout.addWidget(self.controlGroup, 1, 0, 1, 2)
+        # Row 2: [Status Bar]
+        mainLayout.addWidget(self.statusBar, 2, 0, 1, 2)
+        # Row 3: [Log Console]
+        mainLayout.addWidget(self.loggerConsole, 3, 0, 1, 2)
+        mainLayout.setRowStretch(3, 1)
+        mainLayout.setColumnStretch(0, 1)
         mainLayout.setColumnStretch(1, 1)
+
         self.setCentralWidget(visible_window)
         visible_window.setLayout(mainLayout)
+
+        # Update status on startup
+        self._update_status_ui()
 
         # Hotkey setup
         add_hotkey('end', lambda: self.on_press('exit'))
         add_hotkey('del', lambda: self.on_press('pause'))
         add_hotkey('capslock', lambda: self.on_press('pause'))
 
-    # Dropdown box
-    def update_class(self, item, value=None):
-        logging_helper.log_info(f'Preset {item}: {value}')
-        config_helper.save_config(item, value)
+    # ── Class Selector ──────────────────────────────────────────────
+    def update_class(self, idx):
+        class_name = self.classCombo.currentText()
+        logging_helper.log_info(f'Switched class to: {class_name}')
+        config_helper.save_config('class', class_name)
 
-    def passCurrentText(self):
-        self.update_class('class', self.ComboBox.currentText())
+    def createClassSelector(self):
+        self.classGroup = QGroupBox("职业 Class")
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 2, 5, 2)
 
-    def get_class(self):
-        class_array = ['Druid', 'Spiritborn', 'Barbarian', 'Necromancer', 'Sorceress', 'Rogue', 'Warlock']
-        for class_var in class_array:
-            item = QStandardItem(class_var)
-            self.model.appendRow(item)
-        self.ComboBox.setCurrentIndex(0)
+        self.classCombo = QComboBox()
+        self.classCombo.setMinimumWidth(120)
+        classes = ['Barbarian', 'Druid', 'Spiritborn', 'Necromancer', 'Sorceress', 'Rogue', 'Paladin']
+        self.classCombo.addItems(classes)
 
-    def createDropdownBox(self):
-        self.dropdownBox = QGroupBox()
+        # Set current class from config
+        current_class = self.cfg.get('class', 'Barbarian')
+        if current_class in classes:
+            self.classCombo.setCurrentText(current_class)
+
+        self.classCombo.currentTextChanged.connect(self.update_class)
+
+        layout.addWidget(self.classCombo)
+        self.classGroup.setLayout(layout)
+
+    # ── Mode Selector ───────────────────────────────────────────────
+    def update_mode(self, idx):
+        mode = self.modeCombo.currentText()
+        logging_helper.log_info(f'Switched mode to: {mode}')
+        config_helper.save_config('mode', mode.lower())
+
+    def createModeSelector(self):
+        self.modeGroup = QGroupBox("模式 Mode")
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 2, 5, 2)
+
+        self.modeCombo = QComboBox()
+        self.modeCombo.addItems(['Helltide', 'Nightmare Dungeon', 'Campaign'])
+
+        current_mode = self.cfg.get('mode', 'helltide')
+        mode_map = {'helltide': 'Helltide', 'nmd': 'Nightmare Dungeon', 'campaign': 'Campaign'}
+        display_mode = mode_map.get(current_mode, 'Helltide')
+        self.modeCombo.setCurrentText(display_mode)
+
+        self.modeCombo.currentTextChanged.connect(self.update_mode)
+
+        layout.addWidget(self.modeCombo)
+        self.modeGroup.setLayout(layout)
+
+    # ── Control Buttons ─────────────────────────────────────────────
+    def createControlButtons(self):
+        self.controlGroup = QGroupBox("控制 Control")
         layout = QHBoxLayout()
+        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setSpacing(8)
 
-        self.model = QStandardItemModel()
-        self.ComboBox = QComboBox()
-        self.ComboBox.setModel(self.model)
+        # START button
+        self.btnStart = QPushButton("▶ 开始挂机")
+        self.btnStart.setObjectName("btnStart")
+        self.btnStart.clicked.connect(self._start_bot)
 
-        self.get_class()
-        self.ComboBox.activated.connect(self.passCurrentText)
+        # STOP button
+        self.btnStop = QPushButton("■ 停止")
+        self.btnStop.setObjectName("btnStop")
+        self.btnStop.clicked.connect(self._stop_bot)
+        self.btnStop.setEnabled(False)
 
-        layout.addWidget(self.ComboBox)
+        # Calibrate button
+        self.btnCalibrate = QPushButton("🎯 校准")
+        self.btnCalibrate.clicked.connect(self._run_calibration)
+
+        # Toolbox button
+        self.btnToolbox = QPushButton("🔧 工具箱")
+        self.btnToolbox.clicked.connect(self._open_toolbox)
+
+        layout.addWidget(self.btnStart)
+        layout.addWidget(self.btnStop)
         layout.addStretch(1)
-        self.dropdownBox.setLayout(layout)
+        layout.addWidget(self.btnCalibrate)
+        layout.addWidget(self.btnToolbox)
+        self.controlGroup.setLayout(layout)
 
-    # Logger console
+    # ── Status Area ─────────────────────────────────────────────────
+    def createStatusArea(self):
+        self.statusBar = QGroupBox("状态 Status")
+        layout = QHBoxLayout()
+        layout.setContentsMargins(5, 2, 5, 2)
+
+        self.statusLabel = QLabel("● 已就绪 - 选择职业和模式后点击开始")
+        self.statusLabel.setObjectName("statusLabel")
+        self.statusLabel.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(self.statusLabel)
+        self.statusBar.setLayout(layout)
+
+    # ── Logger Console ──────────────────────────────────────────────
     def createLoggerConsole(self):
         self.loggerConsole = QWidget()
-        layout = QHBoxLayout()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
 
         handler = logging_helper.LogHandler(self)
         log_text_box = QPlainTextEdit(self)
-        log_text_box.setStyleSheet('background-color: rgba(255,255,255, 0); color: white')
+        log_text_box.setMaximumBlockCount(500)
         log_text_box.setReadOnly(True)
 
         logging_helper.logger.addHandler(handler)
@@ -108,63 +295,106 @@ class Overlay(QMainWindow):
         self.loggerConsole.setLayout(layout)
 
     def closeEvent(self, event):
-        self.stop_rotation()
+        self._stop_bot()
         root_logger = logging_helper.logger
         if self._log_handler:
             root_logger.removeHandler(self._log_handler)
             self._log_handler = None
         event.accept()
 
-    # Start box
-    def createStartBox(self):
-        self.startBox = QGroupBox()
-        layout = QHBoxLayout()
+    # ── Actions ─────────────────────────────────────────────────────
+    def _start_bot(self):
+        """Start the bot rotation thread."""
+        if not hasattr(self, 'rotation_thread') or not self.rotation_thread.is_alive():
+            self.rotation_thread = Thread(target=self._rotation_loop, daemon=True)
+            self.rotation_thread.start()
+            self.btnStart.setEnabled(False)
+            self.btnStop.setEnabled(True)
+            self._update_status_ui()
 
-        toggleStartButton = QPushButton("BOT")
-        toggleStartButton.clicked.connect(lambda: self.get_rotation_thread(True))
+    def _stop_bot(self):
+        """Stop the bot rotation thread."""
+        if self.running:
+            self.running = False
+        if hasattr(self, 'rotation_thread') and self.rotation_thread.is_alive():
+            self.rotation_thread.join(timeout=2)
+        self.btnStart.setEnabled(True)
+        self.btnStop.setEnabled(False)
+        self._update_status_ui()
 
-        toggleAssistButton = QPushButton("ASSISTANT")
-        toggleAssistButton.clicked.connect(lambda: self.get_rotation_thread(False))
+    def _rotation_loop(self):
+        """Main bot loop running in background thread."""
+        logging_helper.log_info('🚀 D4Bot started')
+        self.proc.set_foreground_window()
+        self.running = True
+        self._update_status_ui()
 
-        layout.addStretch(1)
-        layout.addWidget(toggleStartButton)
-        layout.addStretch(1)
-        layout.addWidget(toggleAssistButton)
-        layout.addStretch(1)
-        self.startBox.setLayout(layout)
+        while self.running:
+            while self.should_pause():
+                sleep(0.25)
+            try:
+                self.robot.game_manager()
+            except Exception as ex:
+                logging_helper.log_debug("game_manager error: %s" % ex)
+                sleep(0.5)
 
-    # Tool box
-    def createToolBox(self):
-        self.toolBox = QGroupBox()
-        layout = QHBoxLayout()
+        logging_helper.log_info("D4Bot stopped")
+        self._update_status_ui()
 
-        toggleToolButton = QPushButton("TOOLBOX")
-        toggleToolButton.clicked.connect(self.littlehelper_toolbox)
+    def _run_calibration(self):
+        """Run coordinate calibration."""
+        logging_helper.log_info("Starting calibration...")
+        logging_helper.log_info("Make sure D4 is running at 1920x1080 windowed fullscreen")
+        Thread(target=self._calibrate_thread, daemon=True).start()
 
-        layout.addStretch(1)
-        layout.addWidget(toggleToolButton)
-        layout.addStretch(1)
-        self.toolBox.setLayout(layout)
+    def _calibrate_thread(self):
+        try:
+            from bot.calibrate import run_calibration
+            run_calibration()
+            logging_helper.log_info("✅ Calibration complete! Coordinates saved.")
+        except Exception as ex:
+            logging_helper.log_error(f"❌ Calibration failed: {ex}")
+            logging_helper.log_error("Check: D4 running? 1920x1080 windowed fullscreen? In-game?")
 
-    # Hotkey actions
+    def _open_toolbox(self):
+        """Open the toolbox for skill icon capture."""
+        app_toolbox = toolbox.Toolbox()
+        app_toolbox.show()
+
+    # ── Status UI ───────────────────────────────────────────────────
+    def _update_status_ui(self):
+        """Update status label and button states from main thread."""
+        if self.running:
+            if self.should_pause():
+                self.statusLabel.setText("⏸ 已暂停 - 按 DEL 继续")
+                self.statusLabel.setObjectName("statusPaused")
+            else:
+                cls = self.cfg.get('class', '?')
+                mode = self.cfg.get('mode', '?')
+                self.statusLabel.setText(f"▶ 运行中 | {cls} | {mode}")
+                self.statusLabel.setObjectName("statusRunning")
+        else:
+            self.statusLabel.setText("● 已就绪 - 选择职业和模式后点击开始")
+            self.statusLabel.setObjectName("statusStopped")
+
+        # Re-apply stylesheet to refresh style
+        self.statusLabel.style().unpolish(self.statusLabel)
+        self.statusLabel.style().polish(self.statusLabel)
+
+    # ── Hotkey actions ──────────────────────────────────────────────
     def on_press(self, key):
         if key == 'exit':
             logging_helper.log_info('_EXIT')
-            self.stop_rotation()
+            self._stop_bot()
         elif key == 'pause':
             self.set_pause(not self.should_pause())
             if self.should_pause():
                 logging_helper.log_info('_PAUSE')
             else:
                 logging_helper.log_info('_RUN')
+            self._update_status_ui()
 
-    def stop_rotation(self):
-        if self.running:
-            self.running = False
-        if hasattr(self, 'rotation_thread') and self.rotation_thread.is_alive():
-            self.rotation_thread.join(timeout=2)
-
-    # Thread-safe pause handling
+    # ── Thread-safe pause ───────────────────────────────────────────
     def should_pause(self):
         with self._lock:
             return self.pause_req
@@ -172,28 +402,3 @@ class Overlay(QMainWindow):
     def set_pause(self, pause):
         with self._lock:
             self.pause_req = pause
-
-    # Rotation thread handling
-    def get_rotation_thread(self, bot_state):
-        if not hasattr(self, 'rotation_thread') or not self.rotation_thread.is_alive():
-            self.rotation_thread = Thread(target=lambda: self.get_rotation(bot_state))
-            self.rotation_thread.start()
-
-    def get_rotation(self, bot_state):
-        logging_helper.log_info('LittleHelper started')
-        self.proc.set_foreground_window()
-        self.running = True
-
-        while self.running:
-            while self.should_pause():
-                sleep(0.25)
-            if bot_state:
-                self.robot.game_manager()
-            else:
-                rotation.rotation()
-
-        logging_helper.log_info("LittleHelper stopped")
-
-    def littlehelper_toolbox(self):
-        app_toolbox = toolbox.Toolbox()
-        app_toolbox.show()

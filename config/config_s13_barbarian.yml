@@ -1,0 +1,29 @@
+# D4 Bot Configuration - Barbarian S13
+# 三系通用：旋风斩 / 先祖锤 / 跃击流
+
+apptitle: Diablo IV
+class: Barbarian
+
+# Key bindings (match your in-game settings)
+# 旋风斩流: 1=战吼 2=挑战怒吼 3=旋风斩 4=狂战士之怒
+# 先祖锤流: 1=战吼 2=挑战怒吼 3=先祖之锤 4=狂战士之怒
+evade: space
+pot: q
+skill1: "1"    # 战吼/集结呐喊
+skill2: "2"    # 挑战怒吼/跳跃
+skill3: "3"    # 核心技能（旋风斩/先祖之锤）
+skill4: "4"    # 狂战士之怒/钢铁之肤
+
+# Left click: 猛击/突刺打击 (怒气生成)
+# Right click: 核心技能备选
+
+# Screen
+resolution: 1920x1080
+fullscreen: windowed
+
+# Behavior
+loot_enabled: true
+fight_enabled: true
+move_enabled: true
+helltide_enabled: true
+mode: helltide

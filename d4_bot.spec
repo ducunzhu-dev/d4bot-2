@@ -26,7 +26,7 @@ a = Analysis(
     hiddenimports=[
         # PyQt5
         'PyQt5', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets',
-        'PyQt5.sip',
+        'PyQt5.sip', 'PyQt5.QtNetwork',
         # OpenCV
         'cv2', 'cv2.data',
         # Input
