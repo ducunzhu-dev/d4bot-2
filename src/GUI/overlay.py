@@ -56,109 +56,126 @@ def _get_screen_geometry():
         return 1920, 1080  # fallback
 
 # Will be computed in __init__ when QApplication exists
-WINDOW_WIDTH = 480
-WINDOW_HEIGHT = 220
+# Base size designed for 1920×1080; auto-scales on higher resolutions
+_BASE_WIDTH = 480
+_BASE_HEIGHT = 220
+
+# Resolution-aware sizing
+screen_w, screen_h = _get_screen_geometry()
+_scale = max(1.0, min(screen_w / 1920.0, screen_h / 1080.0))
+# Cap scaling at 1.5x to avoid oversized UI
+_scale = min(_scale, 1.5)
+
+WINDOW_WIDTH = int(_BASE_WIDTH * _scale)
+WINDOW_HEIGHT = int(_BASE_HEIGHT * _scale)
+FONT_SCALE = _scale
 
 
-STYLE = """
-QMainWindow {
+def _build_style(scale=1.0):
+    """Generate stylesheet with scaled font sizes for current resolution."""
+    fs = lambda base: int(base * scale)
+    return f"""
+QMainWindow {{
     background-color: #1a1a2e;
-}
-QGroupBox {
+}}
+QGroupBox {{
     color: #e0a800;
     border: 1px solid #3a3a5e;
     border-radius: 4px;
     margin-top: 8px;
     padding-top: 12px;
     font-weight: bold;
-}
-QGroupBox::title {
+}}
+QGroupBox::title {{
     subcontrol-origin: margin;
     left: 10px;
     padding: 0 5px;
-}
-QPushButton {
+}}
+QPushButton {{
     background-color: #2d2d44;
     color: white;
     border: 1px solid #555;
     border-radius: 4px;
-    padding: 6px 14px;
+    padding: {fs(6)}px {fs(14)}px;
     font-weight: bold;
-    min-width: 70px;
-}
-QPushButton:hover {
+    min-width: {fs(70)}px;
+    font-size: {fs(12)}px;
+}}
+QPushButton:hover {{
     background-color: #3d3d5e;
-}
-QPushButton#btnStart {
+}}
+QPushButton#btnStart {{
     background-color: #1a6b1a;
     color: white;
-    font-size: 14px;
-    padding: 8px 20px;
-}
-QPushButton#btnStart:hover {
+    font-size: {fs(14)}px;
+    padding: {fs(8)}px {fs(20)}px;
+}}
+QPushButton#btnStart:hover {{
     background-color: #228b22;
-}
-QPushButton#btnStart:disabled {
+}}
+QPushButton#btnStart:disabled {{
     background-color: #555;
     color: #999;
-}
-QPushButton#btnStop {
+}}
+QPushButton#btnStop {{
     background-color: #8b1a1a;
     color: white;
-    font-size: 14px;
-    padding: 8px 20px;
-}
-QPushButton#btnStop:hover {
+    font-size: {fs(14)}px;
+    padding: {fs(8)}px {fs(20)}px;
+}}
+QPushButton#btnStop:hover {{
     background-color: #aa2222;
-}
-QComboBox {
+}}
+QComboBox {{
     background-color: #2d2d44;
     color: white;
     border: 1px solid #555;
     border-radius: 3px;
-    padding: 3px 8px;
-    min-width: 100px;
-}
-QComboBox::drop-down {
+    padding: {fs(3)}px {fs(8)}px;
+    min-width: {fs(100)}px;
+    font-size: {fs(12)}px;
+}}
+QComboBox::drop-down {{
     border: none;
-}
-QComboBox QAbstractItemView {
+}}
+QComboBox QAbstractItemView {{
     background-color: #2d2d44;
     color: white;
     selection-background-color: #4a4a6e;
-}
-QPlainTextEdit {
+    font-size: {fs(12)}px;
+}}
+QPlainTextEdit {{
     background-color: rgba(0,0,0,120);
     color: #aaa;
     border: 1px solid #3a3a5e;
     border-radius: 3px;
     font-family: Consolas, monospace;
-    font-size: 11px;
-}
-QLabel#statusLabel {
+    font-size: {fs(11)}px;
+}}
+QLabel#statusLabel {{
     color: white;
-    font-size: 13px;
+    font-size: {fs(13)}px;
     font-weight: bold;
     padding: 4px;
-}
-QLabel#statusRunning {
+}}
+QLabel#statusRunning {{
     color: #00ff00;
-    font-size: 13px;
+    font-size: {fs(13)}px;
     font-weight: bold;
     padding: 4px;
-}
-QLabel#statusPaused {
+}}
+QLabel#statusPaused {{
     color: #ffaa00;
-    font-size: 13px;
+    font-size: {fs(13)}px;
     font-weight: bold;
     padding: 4px;
-}
-QLabel#statusStopped {
+}}
+QLabel#statusStopped {{
     color: #ff4444;
-    font-size: 13px;
+    font-size: {fs(13)}px;
     font-weight: bold;
     padding: 4px;
-}
+}}
 """
 
 
@@ -195,7 +212,7 @@ class Overlay(QMainWindow):
         self.setWindowTitle(self.name)
         self.setGeometry(x, y, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.setStyleSheet(STYLE)
+        self.setStyleSheet(_build_style(FONT_SCALE))
 
         visible_window = QWidget(self)
         visible_window.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
