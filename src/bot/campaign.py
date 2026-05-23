@@ -12,7 +12,7 @@ _ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).
 
 from pydirectinput import leftClick, rightClick, press
 from helper import image_helper, config_helper, logging_helper
-from helper.image_helper import scale_x, scale_y, scale_region
+from helper import image_helper
 from bot import rotation, pather, pickit
 
 ASSETS_DIR = _ROOT / "assets"
@@ -31,64 +31,82 @@ class CampaignRunner:
 
     def is_dialogue_active(self) -> bool:
         """检测是否在 NPC 对话中（对话框可见）"""
-        # 对话栏在屏幕底部中央
-        checks = [
-            (scale_x(960), scale_y(850), 50, 45, 40, 20),   # 灰色对话背景
-            (scale_x(960), scale_y(870), 220, 210, 190, 25), # 对话文字区域
-        ]
-        for x, y, r, g, b, tol in checks:
-            if image_helper.pixel_matches_color(x, y, r, g, b, tol):
-                return True
-        return False
+        # 对话栏在屏幕底部中央 — 检测白色/浅色文字区域
+        w, h = image_helper._detect_screen_size()
+        dialogue_x = int(w * 0.15)
+        dialogue_y = int(h * 0.78)
+        dialogue_w = int(w * 0.70)
+        dialogue_h = int(h * 0.08)
+        return image_helper.region_match(
+            dialogue_x, dialogue_y, dialogue_w, dialogue_h,
+            image_helper.is_white_text, min_pct=0.08, cols=10, rows=3)
 
     def is_cutscene_active(self) -> bool:
         """检测是否在过场动画中"""
+        w, h = image_helper._detect_screen_size()
+
         # 过场：画面上下有黑边，无 HUD
-        checks = [
-            (scale_x(1), scale_y(1), 0, 0, 0, 5),       # 顶边黑色
-            (scale_x(1), scale_y(1070), 0, 0, 0, 5),    # 底边黑色
-            (scale_x(718), scale_y(980), 60, 75, 84, 30), # HUD 消失（无技能栏）
-        ]
-        hud_visible = image_helper.pixel_matches_color(scale_x(718), scale_y(980), 59, 75, 84, 20)
-        if not hud_visible:
-            return True
-        return False
+        # 检查顶部黑边
+        top_dark = image_helper.region_match(
+            0, 0, w, int(h * 0.03),
+            image_helper.is_very_dark, min_pct=0.85, cols=10, rows=1)
+
+        # 检查底部黑边
+        bottom_dark = image_helper.region_match(
+            0, int(h * 0.97), w, int(h * 0.03),
+            image_helper.is_very_dark, min_pct=0.85, cols=10, rows=1)
+
+        # 检查技能栏区域 — 过场时技能栏消失
+        skill_bar_y = int(h * 0.88)
+        skill_bar_h = int(h * 0.10)
+        skill_bar_dark = image_helper.region_match(
+            0, skill_bar_y, w, skill_bar_h,
+            image_helper.is_dark, min_pct=0.70, cols=12, rows=3)
+
+        # 健康球检测 — 过场时无红色健康球
+        globe_x = int(w * 0.02)
+        globe_y = int(h * 0.87)
+        globe_w = int(w * 0.08)
+        globe_h = int(h * 0.10)
+        has_globe = image_helper.region_match(
+            globe_x, globe_y, globe_w, globe_h,
+            image_helper.is_reddish, min_pct=0.08, cols=5, rows=3)
+
+        # 过场：黑边 + 无 HUD（无技能栏暗色背景 + 无健康球）
+        return (top_dark and bottom_dark) or (skill_bar_dark and not has_globe)
 
     def is_interaction_prompt(self) -> bool:
         """检测是否有交互提示（"按F交谈"等）"""
-        # 屏幕中心偏下的交互提示
-        checks = [
-            (scale_x(960), scale_y(700), 220, 220, 200, 25),  # 白色交互文字
-            (scale_x(960), scale_y(700), 240, 240, 220, 25),
-        ]
-        for x, y, r, g, b, tol in checks:
-            if image_helper.pixel_matches_color(x, y, r, g, b, tol):
-                return True
-        return False
+        w, h = image_helper._detect_screen_size()
+        prompt_x = int(w * 0.35)
+        prompt_y = int(h * 0.60)
+        prompt_w = int(w * 0.30)
+        prompt_h = int(h * 0.10)
+        return image_helper.region_match(
+            prompt_x, prompt_y, prompt_w, prompt_h,
+            image_helper.is_white_text, min_pct=0.05, cols=8, rows=3)
 
     def has_quest_marker(self) -> bool:
         """
         小地图上是否有任务标记。
-        任务标记通常是黄色/金色箭头。
+        任务标记通常是黄色/金色箭头或红色任务圈。
         """
-        # 检查小地图区域的颜色点（简化为像素颜色检测）
-        map_region = scale_region((1700, 80, 200, 180))  # 小地图区域
-        # 黄色任务标记
-        checks = [
-            (scale_x(1750), scale_y(120), 255, 220, 50, 25),  # 黄色
-            (scale_x(1780), scale_y(140), 255, 220, 50, 25),
-            (scale_x(1730), scale_y(100), 255, 220, 50, 25),
-        ]
-        for x, y, r, g, b, tol in checks:
-            if image_helper.pixel_matches_color(x, y, r, g, b, tol):
-                return True
+        w, h = image_helper._detect_screen_size()
+        # 小地图在右上角
+        map_x = int(w * 0.87)
+        map_y = int(h * 0.03)
+        map_w = int(w * 0.12)
+        map_h = int(h * 0.18)
 
-        # 备选：红色任务圈
-        for x, y in [(scale_x(1750), scale_y(150)), (scale_x(1770), scale_y(130)), (scale_x(1730), scale_y(110))]:
-            if image_helper.pixel_matches_color(x, y, 220, 40, 20, 25):
-                return True
+        has_yellow = image_helper.region_match(
+            map_x, map_y, map_w, map_h,
+            image_helper.is_yellowish, min_pct=0.03, cols=6, rows=5)
 
-        return False
+        has_red = image_helper.region_match(
+            map_x, map_y, map_w, map_h,
+            image_helper.is_reddish, min_pct=0.03, cols=6, rows=5)
+
+        return has_yellow or has_red
 
     # === 自动化操作 ===
 
@@ -121,12 +139,20 @@ class CampaignRunner:
 
         logging_helper.log_info("Cutscene detected — waiting...")
         self._cutscene_active = True
+        w, h = image_helper._detect_screen_size()
 
         # 持续检测 HUD 恢复
         timeout = 0
         while timeout < 120:  # 最多等2分钟
-            # 检测 HUD 是否恢复
-            hud_visible = image_helper.pixel_matches_color(scale_x(718), scale_y(980), 59, 75, 84, 20)
+            # 检测 HUD 是否恢复 — 检查健康球是否出现
+            globe_x = int(w * 0.02)
+            globe_y = int(h * 0.87)
+            globe_w = int(w * 0.08)
+            globe_h = int(h * 0.10)
+            hud_visible = image_helper.region_match(
+                globe_x, globe_y, globe_w, globe_h,
+                image_helper.is_reddish, min_pct=0.08, cols=5, rows=3)
+
             if hud_visible:
                 logging_helper.log_info("Cutscene ended")
                 self._cutscene_active = False
@@ -136,9 +162,16 @@ class CampaignRunner:
             if timeout > 3:
                 press('esc')
                 sleep(uniform(0.5, 1.0))
-                # 检查是否弹出了跳过确认
-                if image_helper.pixel_matches_color(scale_x(960), scale_y(600), 40, 40, 40, 20):
-                    leftClick(scale_x(960), scale_y(600))  # 确认跳过
+                # 检查是否弹出了跳过确认对话框
+                center_x = int(w * 0.40)
+                center_y = int(h * 0.50)
+                center_w = int(w * 0.20)
+                center_h = int(h * 0.10)
+                has_dialog = image_helper.region_match(
+                    center_x, center_y, center_w, center_h,
+                    image_helper.is_dark, min_pct=0.50, cols=5, rows=3)
+                if has_dialog:
+                    leftClick(int(w * 0.5), int(h * 0.55))  # 确认跳过
                     sleep(uniform(0.5, 1.0))
 
             sleep(uniform(0.5, 1.0))

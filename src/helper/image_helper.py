@@ -98,6 +98,121 @@ def scale_region(design_region: tuple) -> tuple:
     return (scale_x(left), scale_y(top), scale_x(left + w) - scale_x(left), scale_y(top + h) - scale_y(top))
 
 
+# ═══════════════════════════════════════════════════════════════════
+# V14: Region-based color sampling — replaces single-pixel matching
+# Single pixels are unreliable at 1440p+ due to D4 rendering differences.
+# Instead, we sample grids of pixels in key screen areas and check
+# color DISTRIBUTIONS. This is resolution-agnostic and D4-update-proof.
+# ═══════════════════════════════════════════════════════════════════
+
+def sample_region(left: int, top: int, width: int, height: int,
+                  cols: int = 6, rows: int = 4):
+    """
+    Sample a grid of (cols × rows) pixels from a screen region.
+    Returns list of (r, g, b) tuples, empty list on error.
+    All coordinates should already be scaled for current resolution.
+    """
+    left, top, width, height = int(left), int(top), int(width), int(height)
+    right, bottom = left + width, top + height
+    try:
+        img = ImageGrab.grab(bbox=(left, top, right, bottom))
+        samples = []
+        for row in range(rows):
+            for col in range(cols):
+                sx = min(width - 1, max(0, int(width * (col + 0.5) / cols)))
+                sy = min(height - 1, max(0, int(height * (row + 0.5) / rows)))
+                try:
+                    r, g, b = img.getpixel((sx, sy))
+                    samples.append((int(r), int(g), int(b)))
+                except Exception:
+                    pass
+        return samples
+    except Exception as ex:
+        logging_helper.log_debug(f"sample_region({left},{top},{width},{height}) failed: {ex}")
+        return []
+
+
+def region_match(left: int, top: int, width: int, height: int,
+                 check_fn, min_pct: float = 0.5, cols: int = 6, rows: int = 4) -> bool:
+    """
+    Check if a screen region matches a color condition.
+    check_fn: callable(r, g, b) -> bool
+    Returns True if at least min_pct of sampled pixels pass check_fn.
+    """
+    samples = sample_region(left, top, width, height, cols, rows)
+    if not samples:
+        return False
+    return sum(1 for s in samples if check_fn(*s)) / len(samples) >= min_pct
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Color predicate functions — reusable check_fn for region_match
+# ═══════════════════════════════════════════════════════════════════
+
+def is_reddish(r: int, g: int, b: int) -> bool:
+    """Pixel has dominant red channel (health globe, elite indicator)."""
+    s = r + g + b
+    if s < 20:
+        return False
+    return r > 70 and r > g * 1.4 and r > b * 1.4
+
+
+def is_dark(r: int, g: int, b: int) -> bool:
+    """Pixel is dark (low brightness) — menu background, loading."""
+    return (r + g + b) < 45
+
+
+def is_very_dark(r: int, g: int, b: int) -> bool:
+    """Pixel is nearly black — loading screen indicator."""
+    return (r + g + b) < 10
+
+
+def is_bright(r: int, g: int, b: int) -> bool:
+    """Pixel is bright — UI text, revive button."""
+    return (r + g + b) > 160
+
+
+def is_visible(r: int, g: int, b: int) -> bool:
+    """Pixel is not black — game world has visible content."""
+    return (r + g + b) > 40
+
+
+def is_desaturated(r: int, g: int, b: int) -> bool:
+    """Pixel has similar R,G,B channels (grey/desaturated) — death screen."""
+    avg = (r + g + b) / 3.0
+    if avg < 25:
+        return False
+    return max(abs(r - g), abs(g - b), abs(r - b)) < 45 and avg < 210
+
+
+def is_purple(r: int, g: int, b: int) -> bool:
+    """Pixel is purple — glyph beam, occultist UI."""
+    return b > 80 and r > 60 and b > g + 25 and r > g + 15
+
+
+def is_yellowish(r: int, g: int, b: int) -> bool:
+    """Pixel is yellow/gold — quest marker, legendary item, rare item."""
+    s = r + g + b
+    if s < 60:
+        return False
+    return r > 120 and g > 80 and r > b * 1.3 and g > b
+
+
+def is_blueish(r: int, g: int, b: int) -> bool:
+    """Pixel is blue — magic item, resource globe."""
+    return b > 80 and b > r * 1.2 and b > g * 1.2
+
+
+def is_white_text(r: int, g: int, b: int) -> bool:
+    """Pixel is white/light grey — UI text, interaction prompts."""
+    return r > 180 and g > 170 and b > 160
+
+
+def is_orange(r: int, g: int, b: int) -> bool:
+    """Pixel is orange — legendary items, boss HP bar."""
+    return r > 150 and g > 60 and r > b * 1.5 and g > b
+
+
 def get_pixel_color_at_cursor() -> Tuple[int, int, int, int, int]:
     """
     Get the color of the pixel under the cursor.

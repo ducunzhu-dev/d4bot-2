@@ -15,7 +15,6 @@ import yaml
 
 from pydirectinput import leftClick, rightClick, press
 from helper import mouse_helper, image_helper, config_helper, logging_helper
-from helper.image_helper import scale_x, scale_y, scale_region
 from bot import calibration_loader as cal
 
 # 路径
@@ -50,7 +49,7 @@ STASH_POS = _get_npc_pos('stash')
 OCCULTIST_POS = _get_npc_pos('occultist')
 
 # 城镇传送点（Kyovashad 默认）
-TOWN_WAYPOINT = (scale_x(960), scale_y(540))
+TOWN_WAYPOINT = (image_helper.scale_x(960), image_helper.scale_y(540))
 
 # 颜色配置
 COLOR_LEGENDARY = (255, 140, 0)    # 传奇金色
@@ -58,15 +57,6 @@ COLOR_UNIQUE = (210, 150, 100)     # 独特褐色
 COLOR_RARE = (255, 255, 0)         # 稀有黄色
 COLOR_MAGIC = (100, 100, 255)      # 魔法蓝色
 COLOR_NORMAL = (180, 180, 180)     # 普通灰色
-
-# 物品品质判定像素阈值
-LEGENDARY_PIXELS = [
-    (0, 0, 255, 140, 0, 40),     # 金色标题
-    (0, 2, 200, 100, 20, 50),    # 备选
-]
-UNIQUE_PIXELS = [
-    (0, 0, 210, 150, 100, 30),   # 褐色标题
-]
 
 
 class InventoryManager:
@@ -101,43 +91,71 @@ class InventoryManager:
     # === 状态检测 ===
 
     def is_inventory_open(self) -> bool:
-        """检测背包是否打开（像素校验 HUD 变化）"""
-        # 检查背包 UI 特征像素
-        return image_helper.pixel_matches_color(scale_x(220), scale_y(220), 40, 30, 25, 30)
+        """检测背包是否打开（背包面板覆盖屏幕中央）"""
+        w, h = image_helper._detect_screen_size()
+        # 背包面板在屏幕中央偏右，有深色半透明背景
+        inv_x = int(w * 0.55)
+        inv_y = int(h * 0.15)
+        inv_w = int(w * 0.40)
+        inv_h = int(h * 0.70)
+        return image_helper.region_match(
+            inv_x, inv_y, inv_w, inv_h,
+            image_helper.is_dark, min_pct=0.55, cols=8, rows=10)
 
     def is_inventory_full(self) -> bool:
-        """检测背包是否满了（屏幕中央提示文字）"""
-        # 检查 "背包已满" 提示区域的像素特征
-        checks = [
-            (scale_x(960), scale_y(300), 220, 50, 40, 30),  # 红色提示文字
-            (scale_x(960), scale_y(300), 200, 30, 30, 35),
-        ]
-        for x, y, r, g, b, tol in checks:
-            if image_helper.pixel_matches_color(x, y, r, g, b, tol):
-                return True
-        return False
+        """检测背包是否满了（屏幕中央红色提示文字）"""
+        w, h = image_helper._detect_screen_size()
+        alert_x = int(w * 0.35)
+        alert_y = int(h * 0.25)
+        alert_w = int(w * 0.30)
+        alert_h = int(h * 0.08)
+        return image_helper.region_match(
+            alert_x, alert_y, alert_w, alert_h,
+            image_helper.is_reddish, min_pct=0.05, cols=8, rows=3)
 
     def is_salvage_window_open(self) -> bool:
         """检测是否在铁匠分解界面"""
-        return image_helper.pixel_matches_color(scale_x(400), scale_y(200), 80, 50, 30, 30)
+        w, h = image_helper._detect_screen_size()
+        # 铁匠界面在屏幕左侧，有橙色/红色 UI 元素
+        salvage_x = int(w * 0.05)
+        salvage_y = int(h * 0.15)
+        salvage_w = int(w * 0.25)
+        salvage_h = int(h * 0.30)
+        return image_helper.region_match(
+            salvage_x, salvage_y, salvage_w, salvage_h,
+            image_helper.is_orange, min_pct=0.04, cols=6, rows=5)
 
     # === 物品识别 ===
 
     def get_item_rarity(self, x: int, y: int) -> str:
-        """通过像素颜色判断物品稀有度"""
-        # 检查传奇颜色
-        for ox, oy, r, g, b, tol in LEGENDARY_PIXELS:
-            if image_helper.pixel_matches_color(x + ox, y + oy, r, g, b, tol):
+        """通过物品槽位区域颜色判断稀有度"""
+        # 采样物品图标周围的小区域
+        samples = image_helper.sample_region(
+            int(x) - 5, int(y) - 5, 55, 25, 5, 3)
+        if not samples:
+            return 'normal'
+
+        for r, g, b in samples:
+            s = r + g + b
+            if s < 30:
+                continue
+            # 传奇: 橙色/金色
+            if image_helper.is_orange(r, g, b):
                 return 'legendary'
-        # 检查独特颜色
-        for ox, oy, r, g, b, tol in UNIQUE_PIXELS:
-            if image_helper.pixel_matches_color(x + ox, y + oy, r, g, b, tol):
+            # 独特: 棕色
+            if r > 140 and g > 80 and r > g and r > b and s < 500:
                 return 'unique'
-        # 按颜色区分稀有/魔法/普通
-        if image_helper.pixel_matches_color(x, y, 255, 255, 0, 50):
-            return 'rare'
-        if image_helper.pixel_matches_color(x, y, 100, 100, 255, 50):
-            return 'magic'
+
+        # 检查主颜色
+        for r, g, b in samples:
+            s = r + g + b
+            if s < 30:
+                continue
+            if image_helper.is_yellowish(r, g, b):
+                return 'rare'
+            if image_helper.is_blueish(r, g, b):
+                return 'magic'
+
         return 'normal'
 
     def read_item_tooltip(self, x: int, y: int) -> Optional[dict]:
@@ -296,7 +314,7 @@ class InventoryManager:
             leftClick(slot[0] + 25, slot[1] + 25)
             sleep(uniform(0.1, 0.2))
             # 点击提取按钮（坐标需模板匹配）
-            leftClick(scale_x(960), scale_y(700))
+            leftClick(image_helper.scale_x(960), image_helper.scale_y(700))
             sleep(uniform(0.3, 0.5))
 
         press('esc')
@@ -365,11 +383,11 @@ class InventoryManager:
         完整版需要模板匹配精确定位。
         """
         npc_positions = {
-            'blacksmith': (scale_x(300), scale_y(700)),
-            'stash': (scale_x(200), scale_y(600)),
-            'occultist': (scale_x(350), scale_y(650)),
+            'blacksmith': (image_helper.scale_x(300), image_helper.scale_y(700)),
+            'stash': (image_helper.scale_x(200), image_helper.scale_y(600)),
+            'occultist': (image_helper.scale_x(350), image_helper.scale_y(650)),
         }
-        target = npc_positions.get(npc_type, (scale_x(400), scale_y(500)))
+        target = npc_positions.get(npc_type, (image_helper.scale_x(400), image_helper.scale_y(500)))
         # 点击小地图位置（由主模块 manager 调用 pather 处理）
         leftClick(target[0], target[1])
         sleep(uniform(1.0, 1.5))

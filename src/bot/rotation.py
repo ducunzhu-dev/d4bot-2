@@ -90,8 +90,9 @@ def combat_rotation(class_name: str, x: Optional[int], y: Optional[int]) -> None
 
 def check_target_type(x: Optional[int], y: Optional[int], n: int) -> Optional[str]:
     """
-    Ermittelt ob Ziel 'normal' oder 'elite' ist.
-    Beachtet: reduziert doppelte Aufrufe von detect_lines.
+    Determine if target is 'normal' or 'elite' using region sampling.
+    Elite/Normal indicators appear at top of screen near enemy nameplate.
+    V14: Replaced single-pixel checks with region sampling — works at all resolutions.
     """
     try:
         detect_mob = image_helper.detect_lines('mob') is not None
@@ -99,39 +100,53 @@ def check_target_type(x: Optional[int], y: Optional[int], n: int) -> Optional[st
         logging_helper.log_debug("detect_lines error in check_target_type: %s" % ex)
         detect_mob = False
 
+    if not detect_mob and x is None:
+        return None
+
     try:
-        # Normal checks — FIX: scale coordinates for current resolution
-        if (image_helper.pixel_matches_color(scale_x(801), scale_y(45), 107, 2, 1, 20) or
-            image_helper.pixel_matches_color(scale_x(801), scale_y(45), 156, 65, 93, 20) or
-            image_helper.pixel_matches_color(scale_x(801), scale_y(45), 231, 13, 9, 20) or
-            detect_mob):
+        w, h = image_helper._detect_screen_size()
+
+        # Enemy nameplate area: top-center of screen
+        nameplate_x = int(w * 0.35)
+        nameplate_y = int(h * 0.02)
+        nameplate_w = int(w * 0.30)
+        nameplate_h = int(h * 0.06)
+
+        has_red = image_helper.region_match(
+            nameplate_x, nameplate_y, nameplate_w, nameplate_h,
+            image_helper.is_reddish, min_pct=0.05, cols=8, rows=3)
+
+        has_orange = image_helper.region_match(
+            nameplate_x, nameplate_y, nameplate_w, nameplate_h,
+            image_helper.is_orange, min_pct=0.03, cols=8, rows=3)
+
+        has_purple = image_helper.region_match(
+            nameplate_x, nameplate_y, nameplate_w, nameplate_h,
+            image_helper.is_purple, min_pct=0.03, cols=8, rows=3)
+
+        if detect_mob or has_red or has_orange:
             if x is not None and y is not None:
                 mouse_helper.move_smooth(x + 400 + n, y + 50 + (n * 2), 1)
+            # Elite: purple indicator
+            if has_purple:
+                if x is not None and y is not None:
+                    mouse_helper.move_smooth(x + 400 + (n * 3), y + 50 + (n * 6), 1)
+                return 'elite'
             return 'normal'
-
-        # Elite checks
-        if (image_helper.pixel_matches_color(scale_x(710), scale_y(45), 162, 4, 4, 20) or
-            image_helper.pixel_matches_color(scale_x(710), scale_y(45), 124, 71, 98, 20) or
-            detect_mob):
-            if x is not None and y is not None:
-                mouse_helper.move_smooth(x + 400 + (n * 3), y + 50 + (n * 6), 1)
-            return 'elite'
     except Exception as ex:
-        logging_helper.log_debug("Error in check_target_type pixel checks: %s" % ex)
+        logging_helper.log_debug("Error in check_target_type: %s" % ex)
 
     return None
 
 
 def handle_health_and_evade(evade: str, pot: str) -> None:
     """
-    Prüft Lebensanzeige und verwendet bei Bedarf Potion / Evade.
-    Hinweis: die Farbe-Checks sind projekt-spezifisch; bei Änderungen der UI anpassen.
+    Check health globe and use potion/evade if HP is low.
+    V14: Replaced 3 hardcoded pixel checks with health globe region sampling.
+    Samples the red health globe area — if red fill < 15% → low HP.
     """
     try:
-        low_hp = not image_helper.pixel_matches_color(scale_x(608), scale_y(980), 95, 10, 15, 45) and \
-                 not image_helper.pixel_matches_color(scale_x(608), scale_y(972), 148, 14, 24, 45) and \
-                 not image_helper.pixel_matches_color(scale_x(607), scale_y(978), 97, 29, 82, 45)
-
+        low_hp = _is_low_health()
         if low_hp:
             if locate_and_use_potion(pot):
                 logging_helper.log_info('Used potion')
@@ -139,6 +154,47 @@ def handle_health_and_evade(evade: str, pot: str) -> None:
                 logging_helper.log_info('Used evade')
     except Exception as ex:
         logging_helper.log_debug("handle_health_and_evade error: %s" % ex)
+
+
+def _is_low_health() -> bool:
+    """
+    Check if health globe shows low HP using region sampling.
+    The D4 health globe at bottom-left fills with red. When HP is low,
+    most of the globe area is dark instead of red.
+    """
+    try:
+        w, h = image_helper._detect_screen_size()
+
+        # Health globe: bottom-left ~5-10% from left, bottom ~10% from bottom
+        globe_x = int(w * 0.015)
+        globe_y = int(h * 0.87)
+        globe_w = int(w * 0.07)
+        globe_h = int(h * 0.09)
+
+        def is_health_red(r, g, b):
+            """Bright red fill in health globe — indicates HP present."""
+            s = r + g + b
+            if s < 20:
+                return False
+            return r > 90 and r > g * 2.0 and r > b * 2.0
+
+        red_pct = image_helper.region_match(
+            globe_x, globe_y, globe_w, globe_h,
+            is_health_red, min_pct=0.99, cols=6, rows=4)
+
+        # If region_match returns False, it means < 99% of pixels are red → check actual pct
+        # Actually, region_match returns bool. Let's do manual sampling for exact count.
+        samples = image_helper.sample_region(globe_x, globe_y, globe_w, globe_h, 6, 4)
+        if not samples:
+            return False
+        red_count = sum(1 for r, g, b in samples if is_health_red(r, g, b))
+        red_pct_actual = red_count / len(samples)
+
+        # Low HP: less than 15% of globe area shows red
+        return red_pct_actual < 0.15
+    except Exception as ex:
+        logging_helper.log_debug("_is_low_health error: %s" % ex)
+        return False
 
 
 def locate_and_use_potion(pot: str) -> bool:

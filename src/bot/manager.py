@@ -1,6 +1,6 @@
 from time import sleep
 from random import randint, uniform
-from typing import Iterable, Optional, Tuple
+from typing import Optional, Tuple
 from pathlib import Path
 import sys
 
@@ -50,37 +50,166 @@ class Manager:
             logging_helper.log_debug("locate_needle error for %s: %s" % (path, ex))
             return -1, -1
 
-    def pixel_match_check(self, conditions: Iterable[Tuple[int, int, int, int, int]]) -> bool:
-        """Check multiple pixel conditions for state validation."""
+    def is_on_landing(self) -> bool:
+        """Landing/character select screen — medium brightness, no skill bar."""
         try:
-            return all(image_helper.pixel_matches_color(*cond) for cond in conditions)
+            w, h = image_helper._detect_screen_size()
+            # Sample full screen — landing screen has varied brightness
+            samples = image_helper.sample_region(0, 0, w, h, 8, 6)
+            if not samples:
+                return False
+
+            def is_medium(r, g, b):
+                avg = (r + g + b) / 3
+                return 15 < avg < 220
+
+            medium_pct = sum(1 for s in samples if is_medium(*s)) / len(samples)
+            return 0.40 <= medium_pct <= 0.90
         except Exception as ex:
-            logging_helper.log_debug("pixel_match_check error: %s" % ex)
+            logging_helper.log_debug("is_on_landing error: %s" % ex)
             return False
 
-    def is_on_landing(self) -> bool:
-        conditions = [(scale_x(3), scale_y(2), 22, 30, 31), (scale_x(491), scale_y(888), 18, 17, 18)]
-        return self.pixel_match_check(conditions)
-
     def is_on_menu(self) -> bool:
-        # FIX: Scaled for resolution — menu positions vary with DPI
-        conditions = [(scale_x(74), scale_y(314), 235, 8, 2), (scale_x(70), scale_y(302), 148, 10, 3)]
-        return self.pixel_match_check(conditions)
+        """
+        D4 main menu: dark background with character model and UI buttons.
+        Key indicators:
+        - NO red health globe (definitive: not in-game)
+        - Screen is predominantly dark (60-92% dark pixels)
+        - Some bright UI elements (buttons, logo)
+        """
+        try:
+            w, h = image_helper._detect_screen_size()
+
+            # 1. Health globe area: must NOT show red (rules out in-game)
+            globe_x = int(w * 0.02)
+            globe_y = int(h * 0.87)
+            globe_w = int(w * 0.09)
+            globe_h = int(h * 0.10)
+            has_globe = image_helper.region_match(
+                globe_x, globe_y, globe_w, globe_h,
+                image_helper.is_reddish, min_pct=0.10, cols=5, rows=4)
+            if has_globe:
+                return False  # Red globe visible → in-game, not menu
+
+            # 2. Sample full screen — menu is mostly dark but not all-black
+            samples = image_helper.sample_region(0, 0, w, h, 10, 8)
+            if not samples:
+                return False
+            dark_pct = sum(1 for r, g, b in samples
+                          if image_helper.is_dark(r, g, b)) / len(samples)
+
+            # Menu: 55-93% dark pixels (loading would be >95%)
+            return 0.55 <= dark_pct <= 0.93
+        except Exception as ex:
+            logging_helper.log_debug("is_on_menu error: %s" % ex)
+            return False
 
     def is_on_loading(self) -> bool:
+        """
+        Loading screen: nearly entire screen is black.
+        D4 loading screen is pitch black with a small logo.
+        """
         try:
-            return image_helper.pixel_matches_color(scale_x(1), scale_y(1), 0, 0, 0, tolerance=0)
+            w, h = image_helper._detect_screen_size()
+
+            # Sample full screen — loading should be >95% near-black
+            samples = image_helper.sample_region(0, 0, w, h, 10, 8)
+            if not samples:
+                # Fallback: if we can't grab screen, assume NOT loading
+                return False
+
+            very_dark_pct = sum(1 for r, g, b in samples
+                               if image_helper.is_very_dark(r, g, b)) / len(samples)
+            return very_dark_pct >= 0.94
         except Exception as ex:
-            logging_helper.log_debug("is_on_loading pixel check failed: %s" % ex)
+            logging_helper.log_debug("is_on_loading error: %s" % ex)
             return False
 
     def is_in_game(self) -> bool:
-        conditions = [(scale_x(718), scale_y(984), 59, 75, 84), (scale_x(1209), scale_y(966), 56, 76, 81)]
-        return self.pixel_match_check(conditions)
+        """
+        In-game: skill bar visible with red health globe at bottom-left.
+        This is the most reliable D4 in-game indicator across all resolutions.
+        The health globe is a distinctive crimson-red UI element that doesn't
+        exist on any other screen (menu, loading, death).
+        """
+        try:
+            w, h = image_helper._detect_screen_size()
+
+            # 1. Health globe: bottom-left corner, red orb UI
+            globe_x = int(w * 0.02)
+            globe_y = int(h * 0.87)
+            globe_w = int(w * 0.09)
+            globe_h = int(h * 0.10)
+            has_globe = image_helper.region_match(
+                globe_x, globe_y, globe_w, globe_h,
+                image_helper.is_reddish, min_pct=0.12, cols=6, rows=5)
+
+            if not has_globe:
+                return False
+
+            # 2. Game world: center of screen should have visible content
+            world_x = int(w * 0.15)
+            world_y = int(h * 0.10)
+            world_w = int(w * 0.70)
+            world_h = int(h * 0.72)
+            world_visible = image_helper.region_match(
+                world_x, world_y, world_w, world_h,
+                image_helper.is_visible, min_pct=0.45, cols=8, rows=6)
+
+            return world_visible
+        except Exception as ex:
+            logging_helper.log_debug("is_in_game error: %s" % ex)
+            return False
 
     def is_dead(self) -> bool:
-        conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (scale_x(1), scale_y(1), 0, 0, 0)]
-        return self.pixel_match_check(conditions)
+        """
+        Death screen: world is desaturated (ghost filter) + revive UI at bottom.
+        Secondary check: health globe area is NOT red (empty/dark).
+        """
+        try:
+            w, h = image_helper._detect_screen_size()
+
+            # 1. Quick sanity: NOT loading (loading is all-black)
+            loading_samples = image_helper.sample_region(0, 0, w, h, 5, 4)
+            if loading_samples:
+                black_pct = sum(1 for r, g, b in loading_samples
+                               if image_helper.is_very_dark(r, g, b)) / len(loading_samples)
+                if black_pct > 0.85:
+                    return False  # Loading, not death
+
+            # 2. Health globe area: should NOT show normal red
+            globe_x = int(w * 0.02)
+            globe_y = int(h * 0.87)
+            globe_w = int(w * 0.09)
+            globe_h = int(h * 0.10)
+            globe_red = image_helper.region_match(
+                globe_x, globe_y, globe_w, globe_h,
+                image_helper.is_reddish, min_pct=0.08, cols=5, rows=4)
+            if globe_red:
+                return False  # Normal health visible → not dead
+
+            # 3. Revive button area at bottom-center
+            revive_x = int(w * 0.30)
+            revive_y = int(h * 0.90)
+            revive_w = int(w * 0.40)
+            revive_h = int(h * 0.07)
+            has_revive_ui = image_helper.region_match(
+                revive_x, revive_y, revive_w, revive_h,
+                image_helper.is_bright, min_pct=0.12, cols=8, rows=3)
+
+            # 4. Game world desaturation (death ghost filter)
+            world_x = int(w * 0.20)
+            world_y = int(h * 0.20)
+            world_w = int(w * 0.60)
+            world_h = int(h * 0.55)
+            world_desat = image_helper.region_match(
+                world_x, world_y, world_w, world_h,
+                image_helper.is_desaturated, min_pct=0.35, cols=7, rows=5)
+
+            return has_revive_ui and world_desat
+        except Exception as ex:
+            logging_helper.log_debug("is_dead error: %s" % ex)
+            return False
 
     def click_randomized(self, x: Optional[int] = None, y: Optional[int] = None,
                          jitter: Tuple[int, int, int, int] = (-5, 35, -5, 5), button: str = 'left') -> None:
