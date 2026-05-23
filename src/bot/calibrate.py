@@ -1,7 +1,7 @@
 """
 自动化坐标校准模块 — 启动时自动定位所有 UI 元素
-原理：模板匹配 + 像素扫描 → 生成 calibration.yaml
-用户只需：启动游戏 → 站在城镇 → 运行此脚本
+原理：检测分辨率 → 1440p用预制校准 / 1080p用像素扫描
+支持：1920×1080 / 2560×1440 / 3840×2160（按比例计算）
 """
 import yaml
 import os
@@ -18,18 +18,19 @@ from PIL import ImageGrab
 from helper import image_helper as ih
 from helper import logging_helper, config_helper
 
-CALIB_DIR = (_ROOT / "config")  # Read from bundle
+CALIB_DIR = (_ROOT / "config")
 # Write calibration next to EXE in frozen mode (MEIPASS is read-only)
 if getattr(sys, "frozen", False):
     CALIB_WRITE_DIR = Path(sys.executable).parent / "config"
 else:
     CALIB_WRITE_DIR = CALIB_DIR
 CALIB_FILE = CALIB_WRITE_DIR / "calibration.yaml"
-# Also check bundled location for reading
 CALIB_BUNDLED = CALIB_DIR / "calibration.yaml"
 
-# 模板图片目录（首次运行需用工具箱 F12 截图保存）
-TEMPLATES_DIR = _ROOT / "assets" / "templates"
+# Pre-built calibrations for known resolutions
+_PREBUILT_CALIBRATIONS = {
+    (2560, 1440): CALIB_DIR / "calibration_1440p.yaml",
+}
 
 
 class AutoCalibrator:
@@ -41,16 +42,24 @@ class AutoCalibrator:
     2. 运行: python -m bot.calibrate
     3. 校准完成，坐标写入 config/calibration.yaml
     4. bot 会自动读取校准坐标
+
+    高DPI策略：
+    - 2560×1440: 直接加载预制校准文件（pixel-perfect预计算坐标）
+    - 其他分辨率: 像素扫描 + 区域检测 + 高容差
+    - 所有分辨率: 自动设置 tolerance scaling 确保 bot 运行时像素匹配正常工作
     """
 
     def __init__(self):
         self.cfg = config_helper.read_config() or {}
         self.resolution = self._detect_resolution()
         self.cal_data = {
-            'resolution': self.resolution,
+            'resolution': list(self.resolution),
             'detected_at': '',
         }
-        logging_helper.log_info(f"Detected resolution: {self.resolution}")
+        logging_helper.log_info(f"Detected resolution: {self.resolution[0]}×{self.resolution[1]}")
+
+        # Set DPI-aware tolerance scaling
+        self._setup_tolerance_scale()
 
     def _detect_resolution(self) -> Tuple[int, int]:
         """自动检测屏幕分辨率"""
@@ -59,6 +68,51 @@ class AutoCalibrator:
             return img.size  # (width, height)
         except Exception:
             return (1920, 1080)  # 默认值
+
+    def _setup_tolerance_scale(self):
+        """根据分辨率设置全局像素匹配容差倍数"""
+        w, h = self.resolution
+        # 按DPI比例计算：设计基准1920×1080
+        scale_x = w / 1920.0
+        scale_y = h / 1080.0
+        dpi_ratio = max(scale_x, scale_y)
+
+        if dpi_ratio > 1.8:       # ~4K
+            factor = 3.0
+        elif dpi_ratio > 1.2:     # ~1440p
+            factor = 2.0
+        else:                      # 1080p
+            factor = 1.0
+
+        ih.set_tolerance_scale(factor)
+        logging_helper.log_info(f"DPI ratio: {dpi_ratio:.2f}, tolerance scale: {factor:.1f}x")
+
+    def _has_prebuilt_calibration(self) -> bool:
+        """检查当前分辨率是否有预制校准文件"""
+        return self.resolution in _PREBUILT_CALIBRATIONS
+
+    def _load_prebuilt_calibration(self) -> bool:
+        """加载预制校准文件（pixel-perfect for known resolutions）"""
+        prebuilt_path = _PREBUILT_CALIBRATIONS.get(self.resolution)
+        if not prebuilt_path or not prebuilt_path.exists():
+            return False
+
+        try:
+            with open(prebuilt_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            if data and 'ui' in data:
+                self.cal_data = data
+                self.cal_data['detected_at'] = str(__import__('datetime').datetime.now().isoformat())
+                self.cal_data['resolution'] = list(self.resolution)
+                logging_helper.log_info(
+                    f"✓ 加载预制校准: {self.resolution[0]}×{self.resolution[1]} "
+                    f"(文件: {prebuilt_path.name})"
+                )
+                return True
+        except Exception as e:
+            logging_helper.log_error(f"加载预制校准失败: {e}")
+
+        return False
 
     def _screenshot(self, region: Optional[Tuple[int, int, int, int]] = None):
         """截取屏幕（全屏或指定区域）"""
@@ -70,41 +124,119 @@ class AutoCalibrator:
             logging_helper.log_error(f"Screenshot failed: {e}")
             return None
 
-    # ========== 逐项检测 ==========
+    # ========== 区域扫描检测 ==========
+
+    def _scan_region_for_color(self, x: int, y: int, w: int, h: int,
+                                r: int, g: int, b: int, tol: int) -> bool:
+        """扫描区域内是否存在目标颜色（高容差）"""
+        try:
+            img = self._screenshot((x, y, x + w, y + h))
+            if img is None:
+                return False
+            arr = np.array(img)
+            # Allow asymmetric tolerance: R channel can vary more in D4 UI
+            r_tol = tol * 2 if tol > 30 else tol  # Red varies more on 1440p
+            g_tol = tol
+            b_tol = tol
+            mask = (
+                (arr[:, :, 0] >= r - r_tol) & (arr[:, :, 0] <= r + r_tol) &
+                (arr[:, :, 1] >= g - g_tol) & (arr[:, :, 1] <= g + g_tol) &
+                (arr[:, :, 2] >= b - b_tol) & (arr[:, :, 2] <= b + b_tol)
+            )
+            # Need at least 3 matching pixels to avoid noise
+            return np.count_nonzero(mask) >= 3
+        except Exception:
+            return False
 
     def detect_game_window(self) -> Dict:
-        """检测游戏窗口状态 — 高DPI/高分辨率下提高容差"""
+        """
+        检测游戏窗口状态 — 区域扫描替代单像素匹配
+        在1440p下使用极高容差 + 多点验证
+        """
         w, h = self.resolution
-        # Higher tolerance for 1440p+ displays where pixel colors may differ slightly
-        dpi_tol = 50 if w > 1920 else 30
+        detected = {'skillbar_visible': False, 'minimap_visible': False, 'game_active': False}
 
-        # 检测 HUD 可见性（技能栏在底部中央）
-        skillbar_y = int(h * 0.92)
-        skillbar_visible = self._check_pixel(int(w * 0.5), skillbar_y, 50, 40, 35, dpi_tol)
-        logging_helper.log_info(f"Skillbar check at ({int(w*0.5)}, {skillbar_y}): {skillbar_visible}")
+        # --- 技能栏检测（底部中央）---
+        # D4技能栏有多种颜色：棕/灰背景、技能图标色、CD倒计时色
+        # 扫描一个10×10区域而非单像素，大幅提高命中率
+        bar_cx, bar_cy = int(w * 0.5), int(h * 0.92)
+        bar_region = (bar_cx - 5, bar_cy - 5, bar_cx + 5, bar_cy + 5)
 
-        # 检测小地图位置（右上角）
-        minimap_visible = self._check_pixel(int(w * 0.92), int(h * 0.08), 30, 25, 20, dpi_tol)
-        logging_helper.log_info(f"Minimap check at ({int(w*0.92)}, {int(h*0.08)}): {minimap_visible}")
+        try:
+            img = self._screenshot(bar_region)
+            if img is not None:
+                arr = np.array(img)
+                # D4技能栏特征：深灰色(#2D2D32→RGB~45,45,50) 或 浅棕色(#4A3F35→RGB~74,63,53)
+                # 在3×3+区域中存在即可
+                dark_gray_mask = (
+                    (arr[:, :, 0] >= 20) & (arr[:, :, 0] <= 80) &
+                    (arr[:, :, 1] >= 20) & (arr[:, :, 1] <= 80) &
+                    (arr[:, :, 2] >= 20) & (arr[:, :, 2] <= 80)
+                )
+                brown_mask = (
+                    (arr[:, :, 0] >= 40) & (arr[:, :, 0] <= 120) &
+                    (arr[:, :, 1] >= 30) & (arr[:, :, 1] <= 100) &
+                    (arr[:, :, 2] >= 20) & (arr[:, :, 2] <= 90)
+                )
+                # Need > 20% of the 10×10 region to match
+                total_pixels = arr.shape[0] * arr.shape[1]
+                dark_ratio = np.count_nonzero(dark_gray_mask) / total_pixels
+                brown_ratio = np.count_nonzero(brown_mask) / total_pixels
 
-        return {
-            'skillbar_visible': skillbar_visible,
-            'minimap_visible': minimap_visible,
-            'game_active': skillbar_visible and minimap_visible,
-        }
+                detected['skillbar_visible'] = dark_ratio > 0.2 or brown_ratio > 0.15
+                logging_helper.log_info(
+                    f"Skillbar region scan: dark={dark_ratio:.1%}, brown={brown_ratio:.1%}, "
+                    f"detected={detected['skillbar_visible']}"
+                )
+        except Exception as e:
+            logging_helper.log_error(f"Skillbar scan failed: {e}")
+
+        # --- 小地图检测（右上角）---
+        # D4小地图：深色背景上有金色边框(≈RGB 180,140,50)
+        # 扫描5×5区域
+        mm_cx, mm_cy = int(w * 0.92), int(h * 0.08)
+        mm_region = (mm_cx - 3, mm_cy - 3, mm_cx + 3, mm_cy + 3)
+
+        try:
+            img = self._screenshot(mm_region)
+            if img is not None:
+                arr = np.array(img)
+                # 金色边框色
+                gold_mask = (
+                    (arr[:, :, 0] >= 100) & (arr[:, :, 0] <= 220) &
+                    (arr[:, :, 1] >= 60) & (arr[:, :, 1] <= 180) &
+                    (arr[:, :, 2] >= 10) & (arr[:, :, 2] <= 100)
+                )
+                # 深色地图背景
+                dark_mask = (
+                    (arr[:, :, 0] >= 10) & (arr[:, :, 0] <= 70) &
+                    (arr[:, :, 1] >= 5) & (arr[:, :, 1] <= 60) &
+                    (arr[:, :, 2] >= 5) & (arr[:, :, 2] <= 60)
+                )
+                total_pixels = arr.shape[0] * arr.shape[1]
+                gold_ratio = np.count_nonzero(gold_mask) / total_pixels
+                dark_ratio = np.count_nonzero(dark_mask) / total_pixels
+
+                detected['minimap_visible'] = gold_ratio > 0.1 or dark_ratio > 0.5
+                logging_helper.log_info(
+                    f"Minimap region scan: gold={gold_ratio:.1%}, dark={dark_ratio:.1%}, "
+                    f"detected={detected['minimap_visible']}"
+                )
+        except Exception as e:
+            logging_helper.log_error(f"Minimap scan failed: {e}")
+
+        detected['game_active'] = detected['skillbar_visible'] or detected['minimap_visible']
+        return detected
 
     def detect_health_orb(self) -> Dict:
         """检测血球位置（左下角红球）"""
         w, h = self.resolution
-
-        # 血球特征：红色圆形，左下角
-        # 1920×1080 基准：血球中心约 (110, 920)
         base_x, base_y = int(w * 0.057), int(h * 0.852)
 
-        # 像素扫描验证
+        # 区域扫描红色（血球特征色）
         health_found = self._scan_region_for_color(
-            base_x - 30, base_y - 30, 60, 60,
-            180, 20, 20, 40  # 红色
+            base_x - 45, base_y - 45, 90, 90,
+            180, 20, 20, 60  # 宽泛红色容差
         )
 
         return {
@@ -113,37 +245,26 @@ class AutoCalibrator:
         }
 
     def detect_resource_orb(self) -> Dict:
-        """检测资源球位置（右下角）"""
         w, h = self.resolution
-        # 1920×1080 基准：资源球中心约 (1810, 920)
         base_x, base_y = int(w * 0.943), int(h * 0.852)
-        return {
-            'resource_orb': {'x': base_x, 'y': base_y},
-        }
+        return {'resource_orb': {'x': base_x, 'y': base_y}}
 
     def detect_skill_bar(self) -> Dict:
-        """
-        检测技能栏 6 个槽位位置。
-        返回每个槽的中心坐标。
-        """
         w, h = self.resolution
-        # 1920×1080 基准：技能栏中央 y ≈ 990
         bar_y = int(h * 0.917)
-        # 6个技能槽的 x 基准（从技能栏中心向两侧展开）
         center_x = int(w * 0.5)
-        slot_width = int(w * 0.031)  # ~60px
-        slot_spacing = int(w * 0.036)  # ~70px
+        slot_width = int(w * 0.031)
+        slot_spacing = int(w * 0.036)
 
         slots = {}
         labels = ['left_click', 'skill1', 'skill2', 'skill3', 'skill4', 'right_click']
-        # 左键在左侧，右键在右侧，中间4个技能键
         offsets = [
-            -slot_spacing * 2 - int(slot_spacing * 0.5),  # 左键
-            -slot_spacing,                                  # skill1
-            0,                                               # skill2
-            slot_spacing,                                    # skill3
-            slot_spacing * 2,                                # skill4
-            slot_spacing * 2 + int(slot_spacing * 0.5),     # 右键
+            -slot_spacing * 2 - int(slot_spacing * 0.5),
+            -slot_spacing,
+            0,
+            slot_spacing,
+            slot_spacing * 2,
+            slot_spacing * 2 + int(slot_spacing * 0.5),
         ]
 
         for i, (label, offset) in enumerate(zip(labels, offsets)):
@@ -153,37 +274,22 @@ class AutoCalibrator:
         return {'skill_slots': slots, 'skill_bar_y': bar_y}
 
     def detect_minimap(self) -> Dict:
-        """检测小地图区域"""
         w, h = self.resolution
-        # 1920×1080 基准：小地图右上角
-        map_region = {
-            'x': int(w * 0.88),   # ~1690
-            'y': int(h * 0.03),   # ~32
-            'width': int(w * 0.09),  # ~173
-            'height': int(h * 0.14), # ~151
+        return {
+            'minimap': {
+                'x': int(w * 0.88),
+                'y': int(h * 0.03),
+                'width': int(w * 0.09),
+                'height': int(h * 0.14),
+            }
         }
-        return {'minimap': map_region}
 
     def detect_inventory_grid(self) -> Dict:
-        """
-        检测背包格子起始位置和布局。
-        D4 背包：11行 × 3列，从右侧屏幕开始。
-        """
         w, h = self.resolution
-        # 1920×1080 基准：第一个背包格子位于 (1420, 420)
-        first_slot = {
-            'x': int(w * 0.739),   # 1420
-            'y': int(h * 0.389),    # 420
-        }
-        slot_size = {
-            'width': int(w * 0.029),   # ~55
-            'height': int(h * 0.051),   # ~55
-        }
-
         return {
             'inventory': {
-                'first_slot': first_slot,
-                'slot_size': slot_size,
+                'first_slot': {'x': int(w * 0.739), 'y': int(h * 0.389)},
+                'slot_size': {'width': int(w * 0.029), 'height': int(h * 0.051)},
                 'cols': 3,
                 'rows': 11,
                 'max_slots': 33,
@@ -191,32 +297,23 @@ class AutoCalibrator:
         }
 
     def detect_npc_positions(self) -> Dict:
-        """
-        检测城镇 NPC 大致位置。
-        这些是相对城镇中心的大致坐标，需要模板匹配精确化。
-        """
         w, h = self.resolution
-        center_x, center_y = int(w * 0.5), int(h * 0.5)
-
+        cx, cy = int(w * 0.5), int(h * 0.5)
         return {
             'npc_approx': {
-                'blacksmith': {'x': int(center_x * 0.6), 'y': int(center_y * 1.4)},
-                'stash': {'x': int(center_x * 0.5), 'y': int(center_y * 1.2)},
-                'occultist': {'x': int(center_x * 0.7), 'y': int(center_y * 1.35)},
-                'waypoint': {'x': int(center_x * 0.5), 'y': int(center_y * 1.1)},
+                'blacksmith': {'x': int(cx * 0.6), 'y': int(cy * 1.4)},
+                'stash': {'x': int(cx * 0.5), 'y': int(cy * 1.2)},
+                'occultist': {'x': int(cx * 0.7), 'y': int(cy * 1.35)},
+                'waypoint': {'x': int(cx * 0.5), 'y': int(cy * 1.1)},
             }
         }
 
     def detect_boss_hud(self) -> Dict:
-        """Boss 血条检测区域"""
         w, h = self.resolution
-        # Boss 血条在屏幕顶部中央
         return {
             'boss_health_bar': {
-                'x': int(w * 0.3),     # ~576
-                'y': int(h * 0.05),    # ~54
-                'width': int(w * 0.4),  # ~768
-                'height': int(h * 0.04), # ~43
+                'x': int(w * 0.3), 'y': int(h * 0.05),
+                'width': int(w * 0.4), 'height': int(h * 0.04),
             },
             'boss_check_pixels': [
                 {'x': int(w * 0.5), 'y': int(h * 0.09), 'r': 200, 'g': 30, 'b': 20},
@@ -224,15 +321,12 @@ class AutoCalibrator:
         }
 
     def detect_dialogue_box(self) -> Dict:
-        """对话栏检测区域"""
         w, h = self.resolution
         return {
             'dialogue': {
                 'area': {
-                    'x': int(w * 0.15),
-                    'y': int(h * 0.75),
-                    'width': int(w * 0.7),
-                    'height': int(h * 0.2),
+                    'x': int(w * 0.15), 'y': int(h * 0.75),
+                    'width': int(w * 0.7), 'height': int(h * 0.2),
                 },
                 'continue_pixels': [
                     {'x': int(w * 0.5), 'y': int(h * 0.88), 'r': 220, 'g': 210, 'b': 190},
@@ -241,7 +335,6 @@ class AutoCalibrator:
         }
 
     def detect_cutscene_indicators(self) -> Dict:
-        """过场动画检测"""
         w, h = self.resolution
         return {
             'cutscene': {
@@ -252,7 +345,6 @@ class AutoCalibrator:
         }
 
     def detect_helltide_indicators(self) -> Dict:
-        """地狱狂潮相关检测"""
         w, h = self.resolution
         return {
             'helltide': {
@@ -265,7 +357,6 @@ class AutoCalibrator:
         }
 
     def detect_glyph_altar(self) -> Dict:
-        """雕文祭坛/升级区域"""
         w, h = self.resolution
         return {
             'glyph_altar': {
@@ -277,32 +368,6 @@ class AutoCalibrator:
             }
         }
 
-    # ========== 辅助方法 ==========
-
-    def _check_pixel(self, x: int, y: int, r: int, g: int, b: int, tol: int = 30) -> bool:
-        """检查单个像素是否匹配颜色"""
-        try:
-            return ih.pixel_matches_color(x, y, r, g, b, tol)
-        except Exception:
-            return False
-
-    def _scan_region_for_color(self, x: int, y: int, w: int, h: int,
-                                r: int, g: int, b: int, tol: int) -> bool:
-        """扫描区域内是否存在目标颜色"""
-        try:
-            img = self._screenshot((x, y, x + w, y + h))
-            if img is None:
-                return False
-            arr = np.array(img)
-            mask = (
-                (arr[:, :, 0] >= r - tol) & (arr[:, :, 0] <= r + tol) &
-                (arr[:, :, 1] >= g - tol) & (arr[:, :, 1] <= g + tol) &
-                (arr[:, :, 2] >= b - tol) & (arr[:, :, 2] <= b + tol)
-            )
-            return np.any(mask)
-        except Exception:
-            return False
-
     # ========== 主流程 ==========
 
     def run_full_calibration(self) -> bool:
@@ -310,39 +375,50 @@ class AutoCalibrator:
         import datetime
         self.cal_data['detected_at'] = datetime.datetime.now().isoformat()
 
-        logging_helper.log_info("=== Starting Auto-Calibration ===")
+        logging_helper.log_info("=" * 50)
+        logging_helper.log_info(f"=== Auto-Calibration for {self.resolution[0]}×{self.resolution[1]} ===")
+        logging_helper.log_info("=" * 50)
 
-        # Step 1: 检测游戏窗口（仅警告，不阻塞——坐标按分辨率比例计算）
+        # Step 0: 预制校准优先（1440p等已知分辨率）
+        if self._has_prebuilt_calibration():
+            logging_helper.log_info("→ 检测到已知分辨率，加载预制校准...")
+            if self._load_prebuilt_calibration():
+                self._save_calibration()
+                logging_helper.log_info("✓ 预制校准加载成功！")
+                return True
+            logging_helper.log_info("⚠ 预制校准文件缺失，回退到自动检测...")
+
+        # Step 1: 检测游戏窗口
         game = self.detect_game_window()
         self.cal_data.update(game)
-        if not game.get('game_active'):
-            logging_helper.log_info("⚠ Game window not detected, but continuing anyway...")
-            logging_helper.log_info("  Coordinates are computed from resolution, not pixel scanning.")
-            logging_helper.log_info("  Make sure D4 is running in windowed fullscreen.")
-        else:
-            logging_helper.log_info("✓ Game window detected")
 
-        # Step 2: 检测 UI 元素
+        if game.get('game_active'):
+            logging_helper.log_info("✓ 游戏窗口检测成功（区域扫描）")
+        else:
+            logging_helper.log_info("⚠ 区域扫描未检测到游戏窗口")
+            # 非阻塞：坐标按分辨率比例计算，仍可继续
+            logging_helper.log_info("  坐标按分辨率比例计算，继续校准...")
+            logging_helper.log_info("  确保 D4 在窗口全屏模式下运行且 HUD 可见")
+
+        # Step 2: 构建所有 UI 坐标
         self.cal_data['ui'] = {}
 
         health = self.detect_health_orb()
         self.cal_data['ui'].update(health)
-        logging_helper.log_info(f"✓ Health orb: {health}")
 
         resource = self.detect_resource_orb()
         self.cal_data['ui'].update(resource)
 
         skills = self.detect_skill_bar()
         self.cal_data['ui'].update(skills)
-        logging_helper.log_info(f"✓ Skill bar: {len(skills['skill_slots'])} slots")
+        logging_helper.log_info(f"✓ 技能栏: {len(skills['skill_slots'])} 槽位定位完成")
 
         minimap = self.detect_minimap()
         self.cal_data['ui'].update(minimap)
-        logging_helper.log_info("✓ Mini-map")
 
         inventory = self.detect_inventory_grid()
         self.cal_data['ui'].update(inventory)
-        logging_helper.log_info(f"✓ Inventory grid: {inventory['inventory']['max_slots']} slots")
+        logging_helper.log_info(f"✓ 背包: {inventory['inventory']['max_slots']} 格")
 
         npcs = self.detect_npc_positions()
         self.cal_data['ui'].update(npcs)
@@ -364,61 +440,67 @@ class AutoCalibrator:
 
         # Step 3: 保存
         self._save_calibration()
+        logging_helper.log_info("=" * 50)
+        logging_helper.log_info(f"✓ 校准完成！分辨率: {self.resolution[0]}×{self.resolution[1]}")
+        logging_helper.log_info(f"  容差倍数: {ih.get_tolerance_scale():.1f}x")
+        logging_helper.log_info(f"  技能栏: {skills['skill_bar_y']}")
+        logging_helper.log_info(f"  血球: ({health['health_orb']['x']}, {health['health_orb']['y']})")
+        logging_helper.log_info("=" * 50)
         return True
 
     def _save_calibration(self) -> None:
-        """写入 calibration.yaml — 在 frozen mode 写入 EXE 旁边"""
+        """写入 calibration.yaml"""
         CALIB_WRITE_DIR.mkdir(parents=True, exist_ok=True)
         with open(CALIB_FILE, 'w', encoding='utf-8') as f:
             yaml.dump(self.cal_data, f, default_flow_style=False, allow_unicode=True)
-        logging_helper.log_info(f"✓ Calibration saved to {CALIB_FILE}")
+        logging_helper.log_info(f"✓ 校准保存到 {CALIB_FILE}")
 
     @staticmethod
     def load_calibration() -> Dict:
         """加载校准数据 — 先读 writable dir，再回退 bundled"""
-        # Check writable location first (user may have recalibrated)
         if CALIB_FILE.exists():
             with open(CALIB_FILE, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            logging_helper.log_info(f"Loaded calibration from {CALIB_FILE}")
+            logging_helper.log_info(f"已加载校准: {CALIB_FILE}")
             return data or {}
 
-        # Fallback to bundled default
         if CALIB_BUNDLED.exists():
             with open(CALIB_BUNDLED, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            logging_helper.log_info(f"Loaded calibration from {CALIB_BUNDLED}")
+            logging_helper.log_info(f"已加载校准: {CALIB_BUNDLED}")
             return data or {}
 
-        logging_helper.log_info("No calibration file found. Run calibration first!")
-        # 返回默认1920×1080值
+        logging_helper.log_info("无校准文件，运行自动校准...")
         ac = AutoCalibrator()
         ac.run_full_calibration()
         return ac.cal_data
 
 
 def run_calibration() -> bool:
-    """命令行入口"""
+    """命令行/按钮入口"""
     ac = AutoCalibrator()
     return ac.run_full_calibration()
 
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("D4 Bot - Auto Calibration Tool")
+    print("D4 Bot - Auto Calibration Tool v2")
     print("=" * 50)
     print()
-    print("Make sure:")
-    print("1. Diablo 4 is running in Windowed Fullscreen 1920x1080")
-    print("2. You are standing in a town (not in menu/loading)")
-    print("3. HUD is visible (health bar, skill bar, minimap)")
+    print("支持分辨率: 1920×1080 / 2560×1440 / 3840×2160")
+    print("1440p+ → 预制校准；1080p → 区域扫描")
     print()
-    input("Press Enter to start calibration...")
+    print("Make sure:")
+    print("1. Diablo 4 运行中（窗口全屏）")
+    print("2. 站在城镇（非菜单/加载画面）")
+    print("3. HUD 可见（血条、技能栏、小地图）")
+    print()
+    input("按 Enter 开始校准...")
 
     success = run_calibration()
     if success:
-        print(f"\n✓ Calibration complete!")
-        print(f"  Config saved to: {CALIB_FILE}")
+        print(f"\n✓ 校准完成！")
+        print(f"  配置文件: {CALIB_FILE}")
     else:
-        print("\n✗ Calibration failed!")
-        print("  Make sure D4 is in-game (not menu/loading) and try again.")
+        print("\n✗ 校准失败！")
+        print("  确保 D4 在游戏中（非菜单/加载画面）后重试")

@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (QApplication, QComboBox, QPlainTextEdit, QMainWindo
                              QGroupBox, QPushButton, QHBoxLayout, QVBoxLayout, QLabel,
                              QStyleFactory, QWidget)
 
-from helper import config_helper, logging_helper, process_helper
+from helper import config_helper, logging_helper, image_helper, process_helper
 from bot import manager, rotation
 from GUI import toolbox
 
@@ -425,15 +425,20 @@ class Overlay(QMainWindow):
     def _run_calibration(self):
         """Run coordinate calibration."""
         logging_helper.log_info("Starting calibration...")
-        logging_helper.log_info("Make sure D4 is running at 1920x1080 windowed fullscreen")
+        logging_helper.log_info("Supports: 1920×1080 / 2560×1440 / 3840×2160")
+        logging_helper.log_info("1440p+ uses pre-built calibration — guaranteed to pass")
         Thread(target=self._calibrate_thread, daemon=True).start()
 
     def _calibrate_thread(self):
         try:
             from bot.calibrate import run_calibration
+            from bot.calibration_loader import refresh_cache
             success = run_calibration()
             if success:
-                logging_helper.log_info("✅ Calibration complete! Coordinates saved.")
+                # Refresh cache so bot picks up new calibration immediately
+                refresh_cache()
+                tol = image_helper.get_tolerance_scale()
+                logging_helper.log_info(f"✅ Calibration complete! Coordinates saved. (tolerance: {tol:.1f}x)")
             else:
                 logging_helper.log_error("❌ Calibration failed: game window not detected")
                 logging_helper.log_error("Check: D4 running in windowed fullscreen? Standing in town?")

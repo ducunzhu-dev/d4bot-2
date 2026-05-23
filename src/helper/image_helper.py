@@ -17,6 +17,47 @@ _DESIGN_HEIGHT = 1080
 _screen_w = None
 _screen_h = None
 
+# ═══════════════════════════════════════════════════════════════════
+# DPI-aware tolerance scaling — pixel color matching needs higher
+# tolerance at higher resolutions because D4 renders with different
+# antialiasing / color interpolation at 1440p vs 1080p.
+# At 1440p, a pixel that matches within tolerance=30 at 1080p may
+# have RGB values deviating 50-60+ from the expected values.
+# ═══════════════════════════════════════════════════════════════════
+_tolerance_scale = 1.0  # Multiplier applied to all pixel tolerances
+
+
+def set_tolerance_scale(factor: float) -> None:
+    """
+    Set global tolerance multiplier for pixel matching.
+    Higher DPI = higher tolerance needed.
+    Call during startup/calibration based on detected resolution.
+
+    Recommended values:
+      1920×1080: 1.0 (default)
+      2560×1440: 2.0 (double tolerance — antialiasing is different)
+      3840×2160: 3.0
+    """
+    global _tolerance_scale
+    _tolerance_scale = max(1.0, float(factor))
+    logging_helper.log_info(
+        f"Tolerance scale set to {_tolerance_scale:.1f}x "
+        f"(resolution: {_screen_w or '?'}×{_screen_h or '?'})"
+    )
+
+
+def get_tolerance_scale() -> float:
+    """Get current tolerance multiplier."""
+    return _tolerance_scale
+
+
+def scale_tolerance(d: int) -> int:
+    """
+    Scale a tolerance value by the DPI-aware factor.
+    Use in all pixel matching calls to auto-adapt to 1440p/4K.
+    """
+    return int(d * _tolerance_scale)
+
 
 def _detect_screen_size():
     """Detect primary monitor resolution. Cached after first call."""
@@ -135,11 +176,15 @@ def pixel_matches_color(x: int, y: int, exR: int, exG: int, exB: int, tolerance:
     Check if a pixel matches the expected RGB color within a tolerance.
     Uses PIL ImageGrab (same coordinate system as calibrator) to avoid
     DPI-scaling mismatch that affects pyautogui on 1440p+ displays.
+
+    Tolerance is automatically scaled by the DPI-aware factor — at 1440p
+    the effective tolerance doubles to account for different rendering.
     """
     try:
         from PIL import ImageGrab
         r, g, b = ImageGrab.grab().getpixel((int(x), int(y)))
-        return all(abs(int(actual) - int(expected)) <= int(tolerance)
+        effective_tol = int(tolerance * _tolerance_scale)
+        return all(abs(int(actual) - int(expected)) <= effective_tol
                    for actual, expected in zip((r, g, b), (exR, exG, exB)))
     except Exception as ex:
         logging_helper.log_debug(f"pixel_matches_color({x},{y}) failed: {ex}")

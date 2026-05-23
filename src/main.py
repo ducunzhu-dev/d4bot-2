@@ -87,6 +87,28 @@ except Exception as e:
     _startup_log(traceback.format_exc())
     sys.exit(2)
 
+# ═══════════════════════════════════════════════════════════════════
+# Phase 1.5: Initialize DPI-aware tolerance scaling
+# MUST run before any pixel_matches_color call so 1440p/4K users
+# get correct tolerance from the very first frame.
+# ═══════════════════════════════════════════════════════════════════
+_startup_log("Initializing DPI-aware tolerance scaling...")
+try:
+    from helper import image_helper
+    from PIL import ImageGrab
+    img = ImageGrab.grab()
+    sw, sh = img.size
+    dpi_ratio = max(sw / 1920.0, sh / 1080.0)
+    if dpi_ratio > 1.8:
+        image_helper.set_tolerance_scale(3.0)
+    elif dpi_ratio > 1.2:
+        image_helper.set_tolerance_scale(2.0)
+    else:
+        image_helper.set_tolerance_scale(1.0)
+    _startup_log(f"Tolerance scale: {image_helper.get_tolerance_scale():.1f}x (screen: {sw}×{sh}, DPI ratio: {dpi_ratio:.2f})")
+except Exception as e:
+    _startup_log(f"Tolerance scaling init failed (non-fatal): {e}")
+
 try:
     from GUI import overlay
     _startup_log("GUI.overlay imported OK")
