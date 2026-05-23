@@ -12,20 +12,20 @@ from typing import Tuple, Optional
 
 from pydirectinput import press, leftClick, moveTo, keyDown, keyUp
 from helper import image_helper, mouse_helper, logging_helper
+from helper.image_helper import scale_x, scale_y, scale_region
 
 ASSETS = _ROOT / "assets"
 SKILL_TREE_IMG = str(ASSETS / "skills" / "paladin")
 
-# Skill tree button positions (1920x1080, windowed fullscreen)
-# These are approximate - fine-tune with F10 toolbox if needed
-SKILL_TREE_BTN = (1750, 100)    # Skill tree tab button (right side)
+# Skill tree button positions (1920x1080 design — scaled at runtime)
+SKILL_TREE_BTN = (scale_x(1750), scale_y(100))    # Skill tree tab button (right side)
 SKILL_SLOTS = {
-    'left':  (350, 980),   # Left click slot
-    'right': (550, 980),   # Right click slot
-    '1':     (750, 980),   # Skill 1
-    '2':     (850, 980),   # Skill 2
-    '3':     (950, 980),   # Skill 3
-    '4':     (1050, 980),  # Skill 4
+    'left':  (scale_x(350), scale_y(980)),   # Left click slot
+    'right': (scale_x(550), scale_y(980)),   # Right click slot
+    '1':     (scale_x(750), scale_y(980)),   # Skill 1
+    '2':     (scale_x(850), scale_y(980)),   # Skill 2
+    '3':     (scale_x(950), scale_y(980)),   # Skill 3
+    '4':     (scale_x(1050), scale_y(980)), # Skill 4
 }
 
 # Assign skills by opening skill tree and clicking each node
@@ -81,7 +81,7 @@ def assign_single_skill(skill_img: str, slot: str) -> bool:
 
         # Try to find the skill icon in the skill tree area
         # Tree area is roughly the right 2/3 of the screen
-        tree_region = (300, 100, 1500, 800)
+        tree_region = scale_region((300, 100, 1500, 800))
         result = image_helper.locate_needle(skill_path, conf=0.6, loctype='c', region=tree_region)
 
         if not result or (result[0] == -1 and result[1] == -1):

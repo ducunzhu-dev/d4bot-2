@@ -69,7 +69,7 @@ class Manager:
 
     def is_on_loading(self) -> bool:
         try:
-            return image_helper.pixel_matches_color(1, 1, 0, 0, 0, tolerance=0)
+            return image_helper.pixel_matches_color(scale_x(1), scale_y(1), 0, 0, 0, tolerance=0)
         except Exception as ex:
             logging_helper.log_debug("is_on_loading pixel check failed: %s" % ex)
             return False
@@ -79,7 +79,7 @@ class Manager:
         return self.pixel_match_check(conditions)
 
     def is_dead(self) -> bool:
-        conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (1, 1, 0, 0, 0)]
+        conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (scale_x(1), scale_y(1), 0, 0, 0)]
         return self.pixel_match_check(conditions)
 
     def click_randomized(self, x: Optional[int] = None, y: Optional[int] = None,
@@ -207,7 +207,7 @@ class Manager:
                 self.click_randomized(x2, y2, jitter=(1, 4, 1, 4), button='left')
                 logging_helper.log_info("Found helltide waypoint at %d, %d. Teleporting." % (x2, y2))
                 # Teleport action: sichere Klickkoordinate
-                self.click_randomized(850, 640, button='left')
+                self.click_randomized(scale_x(850), scale_y(640), button='left')
                 return True
 
             # close map to continue if nothing found

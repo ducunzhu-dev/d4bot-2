@@ -12,6 +12,7 @@ _ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).
 
 from pydirectinput import leftClick, rightClick, press
 from helper import image_helper, config_helper, logging_helper
+from helper.image_helper import scale_x, scale_y, scale_region
 from bot import rotation, pather, pickit
 
 ASSETS_DIR = _ROOT / "assets"
@@ -32,8 +33,8 @@ class CampaignRunner:
         """检测是否在 NPC 对话中（对话框可见）"""
         # 对话栏在屏幕底部中央
         checks = [
-            (960, 850, 50, 45, 40, 20),   # 灰色对话背景
-            (960, 870, 220, 210, 190, 25), # 对话文字区域
+            (scale_x(960), scale_y(850), 50, 45, 40, 20),   # 灰色对话背景
+            (scale_x(960), scale_y(870), 220, 210, 190, 25), # 对话文字区域
         ]
         for x, y, r, g, b, tol in checks:
             if image_helper.pixel_matches_color(x, y, r, g, b, tol):
@@ -44,11 +45,11 @@ class CampaignRunner:
         """检测是否在过场动画中"""
         # 过场：画面上下有黑边，无 HUD
         checks = [
-            (1, 1, 0, 0, 0, 5),       # 顶边黑色
-            (1, 1070, 0, 0, 0, 5),    # 底边黑色
-            (718, 980, 60, 75, 84, 30), # HUD 消失（无技能栏）
+            (scale_x(1), scale_y(1), 0, 0, 0, 5),       # 顶边黑色
+            (scale_x(1), scale_y(1070), 0, 0, 0, 5),    # 底边黑色
+            (scale_x(718), scale_y(980), 60, 75, 84, 30), # HUD 消失（无技能栏）
         ]
-        hud_visible = image_helper.pixel_matches_color(718, 980, 59, 75, 84, 20)
+        hud_visible = image_helper.pixel_matches_color(scale_x(718), scale_y(980), 59, 75, 84, 20)
         if not hud_visible:
             return True
         return False
@@ -57,8 +58,8 @@ class CampaignRunner:
         """检测是否有交互提示（"按F交谈"等）"""
         # 屏幕中心偏下的交互提示
         checks = [
-            (960, 700, 220, 220, 200, 25),  # 白色交互文字
-            (960, 700, 240, 240, 220, 25),
+            (scale_x(960), scale_y(700), 220, 220, 200, 25),  # 白色交互文字
+            (scale_x(960), scale_y(700), 240, 240, 220, 25),
         ]
         for x, y, r, g, b, tol in checks:
             if image_helper.pixel_matches_color(x, y, r, g, b, tol):
@@ -71,19 +72,19 @@ class CampaignRunner:
         任务标记通常是黄色/金色箭头。
         """
         # 检查小地图区域的颜色点（简化为像素颜色检测）
-        map_region = (1700, 80, 200, 180)  # 小地图区域
+        map_region = scale_region((1700, 80, 200, 180))  # 小地图区域
         # 黄色任务标记
         checks = [
-            (1750, 120, 255, 220, 50, 25),  # 黄色
-            (1780, 140, 255, 220, 50, 25),
-            (1730, 100, 255, 220, 50, 25),
+            (scale_x(1750), scale_y(120), 255, 220, 50, 25),  # 黄色
+            (scale_x(1780), scale_y(140), 255, 220, 50, 25),
+            (scale_x(1730), scale_y(100), 255, 220, 50, 25),
         ]
         for x, y, r, g, b, tol in checks:
             if image_helper.pixel_matches_color(x, y, r, g, b, tol):
                 return True
 
         # 备选：红色任务圈
-        for x, y in [(1750, 150), (1770, 130), (1730, 110)]:
+        for x, y in [(scale_x(1750), scale_y(150)), (scale_x(1770), scale_y(130)), (scale_x(1730), scale_y(110))]:
             if image_helper.pixel_matches_color(x, y, 220, 40, 20, 25):
                 return True
 
@@ -125,7 +126,7 @@ class CampaignRunner:
         timeout = 0
         while timeout < 120:  # 最多等2分钟
             # 检测 HUD 是否恢复
-            hud_visible = image_helper.pixel_matches_color(718, 980, 59, 75, 84, 20)
+            hud_visible = image_helper.pixel_matches_color(scale_x(718), scale_y(980), 59, 75, 84, 20)
             if hud_visible:
                 logging_helper.log_info("Cutscene ended")
                 self._cutscene_active = False
@@ -136,8 +137,8 @@ class CampaignRunner:
                 press('esc')
                 sleep(uniform(0.5, 1.0))
                 # 检查是否弹出了跳过确认
-                if image_helper.pixel_matches_color(960, 600, 40, 40, 40, 20):
-                    leftClick(960, 600)  # 确认跳过
+                if image_helper.pixel_matches_color(scale_x(960), scale_y(600), 40, 40, 40, 20):
+                    leftClick(scale_x(960), scale_y(600))  # 确认跳过
                     sleep(uniform(0.5, 1.0))
 
             sleep(uniform(0.5, 1.0))

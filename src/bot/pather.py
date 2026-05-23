@@ -5,7 +5,7 @@ import os
 import time
 
 from helper import image_helper, config_helper, logging_helper
-from helper.image_helper import scale_x, scale_y
+from helper.image_helper import scale_x, scale_y, scale_region
 
 # Konstanten für die Bildschirmmitte und Minimap-Koordinaten (1920×1080 Design)
 PLAYER_X = scale_x(960)   # Bildschirmmitte X
@@ -128,7 +128,7 @@ def move_to_ref_location(stuck=False):
     # Überprüfen, ob eine kletterbare Oberfläche erkannt wird
     try:
         climb_path = os.path.join('.', 'assets', 'skills', 'climb.png')
-        if image_helper.locate_needle(climb_path, conf=0.7, region=(750, 250, 1250, 750)):
+        if image_helper.locate_needle(climb_path, conf=0.7, region=scale_region((750, 250, 1250, 750))):
             press(evade_var)
             logging_helper.log_debug("Climb detected, pressed evade key '%s'" % evade_var)
     except Exception as ex:

@@ -13,15 +13,16 @@ import yaml
 
 from pydirectinput import leftClick, rightClick, press
 from helper import mouse_helper, image_helper, config_helper, logging_helper
+from helper.image_helper import scale_x, scale_y, scale_region
 from bot import rotation, pather, pickit
 
 CONFIG_DIR = _ROOT / "config"
 ASSETS_DIR = _ROOT / "assets"
 
-# === 地城常量 ===
-GLYPH_ALTAR_REGION = (400, 300, 700, 500)   # 雕文祭坛屏幕区域
-BOSS_HUD_PIXELS = [(960, 100, 200, 30, 20, 30)]  # Boss 血条检测
-DUNGEON_COMPLETE_PIXELS = [(960, 400, 200, 180, 80, 30)]  # 地城完成提示
+# === 地城常量 — 所有坐标使用 scale 函数动态计算 (1920×1080 基准) ===
+GLYPH_ALTAR_REGION = lambda: scale_region((400, 300, 700, 500))   # 雕文祭坛屏幕区域
+BOSS_HUD_PIXELS = lambda: [(scale_x(960), scale_y(100), 200, 30, 20, 30)]  # Boss 血条检测
+DUNGEON_COMPLETE_PIXELS = lambda: [(scale_x(960), scale_y(400), 200, 180, 80, 30)]  # 地城完成提示
 
 
 class DungeonRunner:
@@ -48,7 +49,7 @@ class DungeonRunner:
         """检测是否在地城内（小地图样式 + 任务指示器）"""
         # 地城内小地图有特殊边框和楼层显示
         checks = [
-            (1750, 50, 40, 40, 40, 20),   # 小地图边框
+            (scale_x(1750), scale_y(50), 40, 40, 40, 20),   # 小地图边框
         ]
         for x, y, r, g, b, tol in checks:
             if image_helper.pixel_matches_color(x, y, r, g, b, tol):
@@ -60,27 +61,27 @@ class DungeonRunner:
         # Boss 血条出现在屏幕顶部
         return any(
             image_helper.pixel_matches_color(x, y, r, g, b, tol)
-            for x, y, r, g, b, tol in BOSS_HUD_PIXELS
+            for x, y, r, g, b, tol in BOSS_HUD_PIXELS()
         )
 
     def is_dungeon_complete(self) -> bool:
         """检测地城是否完成（完成提示/升级柱出现）"""
         return any(
             image_helper.pixel_matches_color(x, y, r, g, b, tol)
-            for x, y, r, g, b, tol in DUNGEON_COMPLETE_PIXELS
+            for x, y, r, g, b, tol in DUNGEON_COMPLETE_PIXELS()
         )
 
     def is_glyph_on_ground(self) -> bool:
         """检测地上是否有雕文掉落"""
         # 雕文掉落光柱（紫色）
         # 检测地面区域是否有紫色光柱
-        ground_region = (300, 500, 1300, 400)
+        ground_region = scale_region((300, 500, 1300, 400))
         try:
             # 简单颜色检测 — 紫色像素簇
             checks = [
-                (500, 600, 180, 50, 200, 30),
-                (700, 600, 180, 50, 200, 30),
-                (900, 600, 180, 50, 200, 30),
+                (scale_x(500), scale_y(600), 180, 50, 200, 30),
+                (scale_x(700), scale_y(600), 180, 50, 200, 30),
+                (scale_x(900), scale_y(600), 180, 50, 200, 30),
             ]
             for x, y, r, g, b, tol in checks:
                 if image_helper.pixel_matches_color(x, y, r, g, b, tol):
@@ -102,11 +103,11 @@ class DungeonRunner:
         # 切换到钥石标签（消耗品页）
         # 钥石通常在消耗品页的第一个位置
         # 简化版：点击假定位置
-        leftClick(1620, 300)  # 右侧钥石标签
+        leftClick(scale_x(1620), scale_y(300))  # 右侧钥石标签
         sleep(uniform(0.2, 0.3))
 
         # 右键钥石（第一个格子）
-        rightClick(1450, 450)
+        rightClick(scale_x(1450), scale_y(450))
         sleep(uniform(0.2, 0.3))
 
         press('esc')  # 关闭背包
@@ -123,7 +124,7 @@ class DungeonRunner:
         sleep(uniform(0.3, 0.5))
 
         # 检测地城入口图标（红色菱形）
-        dungeon_region = (200, 200, 1520, 680)
+        dungeon_region = scale_region((200, 200, 1520, 680))
         try:
             result = image_helper.locate_needle(
                 str(ASSETS_DIR / 'skills' / 'dungeon_entrance.png'),
@@ -195,7 +196,7 @@ class DungeonRunner:
             return False
 
         # 点击雕文光柱中心区域
-        leftClick(960, 550)  # 中央区域
+        leftClick(scale_x(960), scale_y(550))  # 中央区域
         sleep(uniform(0.3, 0.5))
         return True
 
@@ -205,7 +206,7 @@ class DungeonRunner:
         try:
             result = image_helper.locate_needle(
                 str(ASSETS_DIR / 'skills' / 'upgrade_pedestal.png'),
-                conf=0.7, loctype='c', region=GLYPH_ALTAR_REGION
+                conf=0.7, loctype='c', region=GLYPH_ALTAR_REGION()
             )
             if result[0] != -1 and result[1] != -1:
                 x, y = result
@@ -214,7 +215,7 @@ class DungeonRunner:
                     sleep(uniform(1.0, 1.5))
         except Exception:
             # 祭坛图像未配置，使用默认位置
-            leftClick(960, 540)
+            leftClick(scale_x(960), scale_y(540))
             sleep(uniform(1.0, 1.5))
 
         # 升级雕文（按优先级）
@@ -228,7 +229,7 @@ class DungeonRunner:
             logging_helper.log_info(f"Upgrading glyph: {name} (priority {glyph.get('priority')})")
 
             # 点击升级按钮（需要模板匹配或固定坐标）
-            leftClick(960, 800)  # 升级按钮大致位置
+            leftClick(scale_x(960), scale_y(800))  # 升级按钮大致位置
             sleep(uniform(0.3, 0.5))
 
         # 退出祭坛
@@ -242,7 +243,7 @@ class DungeonRunner:
             press('f')  # 交互
             sleep(uniform(0.5, 1.0))
             # 通常升阶柱会提供一个"离开地城"选项
-            leftClick(960, 600)
+            leftClick(scale_x(960), scale_y(600))
             sleep(uniform(3.0, 5.0))  # 加载
 
     # === 完整流程 ===

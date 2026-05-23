@@ -15,6 +15,7 @@ import yaml
 
 from pydirectinput import leftClick, rightClick, press
 from helper import mouse_helper, image_helper, config_helper, logging_helper
+from helper.image_helper import scale_x, scale_y, scale_region
 from bot import calibration_loader as cal
 
 # 路径
@@ -49,7 +50,7 @@ STASH_POS = _get_npc_pos('stash')
 OCCULTIST_POS = _get_npc_pos('occultist')
 
 # 城镇传送点（Kyovashad 默认）
-TOWN_WAYPOINT = (960, 540)
+TOWN_WAYPOINT = (scale_x(960), scale_y(540))
 
 # 颜色配置
 COLOR_LEGENDARY = (255, 140, 0)    # 传奇金色
@@ -102,14 +103,14 @@ class InventoryManager:
     def is_inventory_open(self) -> bool:
         """检测背包是否打开（像素校验 HUD 变化）"""
         # 检查背包 UI 特征像素
-        return image_helper.pixel_matches_color(220, 220, 40, 30, 25, 30)
+        return image_helper.pixel_matches_color(scale_x(220), scale_y(220), 40, 30, 25, 30)
 
     def is_inventory_full(self) -> bool:
         """检测背包是否满了（屏幕中央提示文字）"""
         # 检查 "背包已满" 提示区域的像素特征
         checks = [
-            (960, 300, 220, 50, 40, 30),  # 红色提示文字
-            (960, 300, 200, 30, 30, 35),
+            (scale_x(960), scale_y(300), 220, 50, 40, 30),  # 红色提示文字
+            (scale_x(960), scale_y(300), 200, 30, 30, 35),
         ]
         for x, y, r, g, b, tol in checks:
             if image_helper.pixel_matches_color(x, y, r, g, b, tol):
@@ -118,7 +119,7 @@ class InventoryManager:
 
     def is_salvage_window_open(self) -> bool:
         """检测是否在铁匠分解界面"""
-        return image_helper.pixel_matches_color(400, 200, 80, 50, 30, 30)
+        return image_helper.pixel_matches_color(scale_x(400), scale_y(200), 80, 50, 30, 30)
 
     # === 物品识别 ===
 
@@ -295,7 +296,7 @@ class InventoryManager:
             leftClick(slot[0] + 25, slot[1] + 25)
             sleep(uniform(0.1, 0.2))
             # 点击提取按钮（坐标需模板匹配）
-            leftClick(960, 700)
+            leftClick(scale_x(960), scale_y(700))
             sleep(uniform(0.3, 0.5))
 
         press('esc')
@@ -364,11 +365,11 @@ class InventoryManager:
         完整版需要模板匹配精确定位。
         """
         npc_positions = {
-            'blacksmith': (300, 700),
-            'stash': (200, 600),
-            'occultist': (350, 650),
+            'blacksmith': (scale_x(300), scale_y(700)),
+            'stash': (scale_x(200), scale_y(600)),
+            'occultist': (scale_x(350), scale_y(650)),
         }
-        target = npc_positions.get(npc_type, (400, 500))
+        target = npc_positions.get(npc_type, (scale_x(400), scale_y(500)))
         # 点击小地图位置（由主模块 manager 调用 pather 处理）
         leftClick(target[0], target[1])
         sleep(uniform(1.0, 1.5))
