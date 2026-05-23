@@ -6,12 +6,15 @@ from time import sleep
 from random import uniform
 from typing import Optional, Tuple
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 
 from pydirectinput import leftClick, rightClick, press
 from helper import image_helper, config_helper, logging_helper
 from bot import rotation, pather, pickit
 
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+ASSETS_DIR = _ROOT / "assets"
 
 
 class CampaignRunner:

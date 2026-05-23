@@ -5,12 +5,15 @@ Opens skill tree and drags skills to bar using pixel detection.
 import time
 import random
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 from typing import Tuple, Optional
 
 from pydirectinput import press, leftClick, moveTo, keyDown, keyUp
 from helper import image_helper, mouse_helper, logging_helper
 
-ASSETS = Path(__file__).resolve().parents[2] / "assets"
+ASSETS = _ROOT / "assets"
 SKILL_TREE_IMG = str(ASSETS / "skills" / "paladin")
 
 # Skill tree button positions (1920x1080, windowed fullscreen)

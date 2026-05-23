@@ -6,14 +6,17 @@ from time import sleep
 from random import uniform
 from typing import Optional, Tuple
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import yaml
 
 from pydirectinput import leftClick, rightClick, press
 from helper import mouse_helper, image_helper, config_helper, logging_helper
 from bot import rotation, pather, pickit
 
-CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+CONFIG_DIR = _ROOT / "config"
+ASSETS_DIR = _ROOT / "assets"
 
 # === 地城常量 ===
 GLYPH_ALTAR_REGION = (400, 300, 700, 500)   # 雕文祭坛屏幕区域

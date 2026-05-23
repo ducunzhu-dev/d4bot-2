@@ -3,13 +3,16 @@ from random import randint, uniform
 from typing import Tuple, List, Sequence
 from pydirectinput import leftClick
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import os
 import logging
 
 from helper import image_helper, logging_helper
 
 # Assets-Pfad (relativ zum Repo-Root, berechnet aus Dateiposition)
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets" / "pickit"
+ASSETS_DIR = _ROOT / "assets" / "pickit"
 IMAGE_DIR = str(ASSETS_DIR)
 
 # Konstante Einstellungen

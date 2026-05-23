@@ -3,6 +3,8 @@ D4Bot - Unified Control Panel
 Single window for class selection, mode control, calibration, and monitoring.
 """
 import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import os
 from pathlib import Path
 from threading import Thread, Lock
@@ -28,7 +30,7 @@ def _get_asset_dir():
         return Path(sys._MEIPASS) / "assets"
     else:
         # Dev mode: relative to project root
-        return Path(__file__).resolve().parents[2] / "assets"
+        return _ROOT / "assets"
 
 ASSETS_DIR = _get_asset_dir()
 ICON_PATH = str(ASSETS_DIR / 'layout' / 'mmorpg_helper.ico')

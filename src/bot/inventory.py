@@ -8,6 +8,9 @@ from time import sleep
 from random import uniform, randint
 from typing import Optional, Tuple, List
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import yaml
 
 from pydirectinput import leftClick, rightClick, press
@@ -15,8 +18,8 @@ from helper import mouse_helper, image_helper, config_helper, logging_helper
 from bot import calibration_loader as cal
 
 # 路径
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
-CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+ASSETS_DIR = _ROOT / "assets"
+CONFIG_DIR = _ROOT / "config"
 
 # === 自动校准坐标（优先 calibration.yaml，回退硬编码）===
 def _get_first_slot():

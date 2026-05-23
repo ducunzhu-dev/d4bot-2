@@ -4,6 +4,9 @@ from pathlib import Path
 from io import open
 import tempfile
 import os
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 
 from helper import logging_helper
 
@@ -11,13 +14,22 @@ class ConfigError(Exception):
     """Spezielle Ausnahme fuer Konfigurationsfehler."""
     pass
 
+def _get_project_root() -> Path:
+    """
+    Get project root — works both dev and PyInstaller frozen bundle.
+    In frozen mode, config files are extracted to sys._MEIPASS.
+    """
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS)
+    else:
+        return _ROOT  # src/helper -> src -> project root
+
 def get_file_path() -> str:
     """
     Bestimmt den absoluten Pfad zur Konfigurationsdatei.
     Erwartet die Datei unter <project_root>/config/config.yml.
     """
-    base_dir = Path(__file__).resolve().parents[1].parent  # zwei Ebenen hoch: src/helper -> src -> project root
-    config_dir = base_dir / "config"
+    config_dir = _get_project_root() / "config"
     return str(config_dir / "config.yml")
 
 def ensure_config_exists(default: Optional[Dict[str, Any]] = None) -> None:

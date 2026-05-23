@@ -2,13 +2,16 @@ from random import uniform
 from time import sleep
 from typing import Optional
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 from pydirectinput import keyDown, keyUp, press, leftClick, rightClick
 
 from helper import mouse_helper, image_helper, timer_helper, config_helper, logging_helper
 from helper.timer_helper import TIMER_STOPPED
 
 # Skill-Assets relativ zum Projekt
-SKILLPATH = Path(__file__).resolve().parents[2] / "assets" / "skills"
+SKILLPATH = _ROOT / "assets" / "skills"
 
 # Timer-Instanzen für Abklingzeiten
 timer1 = timer_helper.TimerHelper('timer1')

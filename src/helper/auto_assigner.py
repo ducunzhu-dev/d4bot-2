@@ -6,10 +6,13 @@ import time
 import random
 import json
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 from typing import List, Tuple, Optional
 from pydirectinput import press, leftClick, moveTo
 
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets" / "paladin"
+ASSETS_DIR = _ROOT / "assets" / "paladin"
 CALIB_FILE = str(ASSETS_DIR / "calibration.json")
 
 # ─── Skill Tree Layout (审判连锁爆炸流) ──────────────────

@@ -8,6 +8,8 @@ This log is the ONLY way to diagnose "double-click EXE → nothing happens".
 """
 
 import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import os
 import traceback
 from datetime import datetime
@@ -25,7 +27,7 @@ def _get_startup_log_path():
         base = Path(sys.executable).parent
     else:
         # Dev mode: log in project root
-        base = Path(__file__).resolve().parents[2]
+        base = _ROOT
     log_dir = base / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir / "startup.log"

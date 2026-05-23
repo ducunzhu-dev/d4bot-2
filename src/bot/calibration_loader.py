@@ -3,10 +3,13 @@
 优先级：calibration.yaml > 硬编码默认值
 """
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 from typing import Dict, Any, Optional
 import yaml
 
-CALIB_FILE = Path(__file__).resolve().parents[2] / "config" / "calibration.yaml"
+CALIB_FILE = _ROOT / "config" / "calibration.yaml"
 
 _cal_cache = None  # 单例缓存
 

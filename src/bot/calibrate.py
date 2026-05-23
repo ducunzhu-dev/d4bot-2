@@ -7,6 +7,9 @@ import yaml
 import os
 from time import sleep
 from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 from typing import Optional, Tuple, Dict
 
 import numpy as np
@@ -15,11 +18,11 @@ from PIL import ImageGrab
 from helper import image_helper as ih
 from helper import logging_helper, config_helper
 
-CALIB_DIR = Path(__file__).resolve().parents[2] / "config"
+CALIB_DIR = _ROOT / "config"
 CALIB_FILE = CALIB_DIR / "calibration.yaml"
 
 # 模板图片目录（首次运行需用工具箱 F12 截图保存）
-TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "assets" / "templates"
+TEMPLATES_DIR = _ROOT / "assets" / "templates"
 
 
 class AutoCalibrator:
