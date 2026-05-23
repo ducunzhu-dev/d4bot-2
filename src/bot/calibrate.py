@@ -316,7 +316,6 @@ class AutoCalibrator:
         game = self.detect_game_window()
         self.cal_data.update(game)
         if not game.get('game_active'):
-            logging_helper.log_warning = logging_helper.log_info  # use info if warning not available
             logging_helper.log_info("⚠ Game window not detected, but continuing anyway...")
             logging_helper.log_info("  Coordinates are computed from resolution, not pixel scanning.")
             logging_helper.log_info("  Make sure D4 is running in windowed fullscreen.")
