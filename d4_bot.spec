@@ -10,8 +10,17 @@ block_cipher = None
 # Project root
 PROJ_DIR = Path(SPECPATH)  # directory containing this .spec file
 
-# Collect all asset files
+# Collect PyQt5 platform plugins (fixes silent crash)
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 datas = []
+
+# Include PyQt5 data files (platforms/qwindows.dll etc.)
+try:
+    datas += collect_data_files('PyQt5')
+except Exception:
+    pass
+
+# Collect all asset files
 for data_dir in ['assets', 'config', 'record']:
     src_dir = PROJ_DIR / data_dir
     if src_dir.exists():
