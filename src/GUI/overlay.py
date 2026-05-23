@@ -2,7 +2,9 @@
 D4Bot - Unified Control Panel
 Single window for class selection, mode control, calibration, and monitoring.
 """
-from keyboard import add_hotkey
+import sys
+import os
+from pathlib import Path
 from threading import Thread, Lock
 from time import sleep
 from PyQt5.QtCore import Qt
@@ -15,11 +17,46 @@ from helper import config_helper, logging_helper, process_helper
 from bot import manager, rotation
 from GUI import toolbox
 
-WINDOW_X = 1425
-WINDOW_Y = 825
+
+# ═══════════════════════════════════════════════════════════════════
+# Asset path resolution — works both dev and PyInstaller bundled
+# ═══════════════════════════════════════════════════════════════════
+def _get_asset_dir():
+    """Get absolute path to assets/ directory."""
+    if getattr(sys, 'frozen', False):
+        # PyInstaller: assets are extracted to sys._MEIPASS
+        return Path(sys._MEIPASS) / "assets"
+    else:
+        # Dev mode: relative to project root
+        return Path(__file__).resolve().parents[2] / "assets"
+
+ASSETS_DIR = _get_asset_dir()
+ICON_PATH = str(ASSETS_DIR / 'layout' / 'mmorpg_helper.ico')
+BG_PATH = str(ASSETS_DIR / 'layout' / 'mmorpg_helper_background.png')
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Resolution-aware positioning
+# Default designed for 1920×1080; auto-adjusts on larger screens
+# ═══════════════════════════════════════════════════════════════════
+def _get_screen_geometry():
+    """Detect screen geometry for correct window placement."""
+    try:
+        app = QApplication.instance()
+        if app is None:
+            app_temp = QApplication(['dummy'])
+            screen = app_temp.primaryScreen().availableGeometry()
+            app_temp.quit()
+        else:
+            screen = app.primaryScreen().availableGeometry()
+        return screen.width(), screen.height()
+    except Exception:
+        return 1920, 1080  # fallback
+
+# Will be computed in __init__ when QApplication exists
 WINDOW_WIDTH = 480
 WINDOW_HEIGHT = 220
-ICON_PATH = './assets/layout/mmorpg_helper.ico'
+
 
 STYLE = """
 QMainWindow {
@@ -122,6 +159,7 @@ QLabel#statusStopped {
 }
 """
 
+
 class Overlay(QMainWindow):
     def __init__(self, parent=None):
         super(Overlay, self).__init__(parent)
@@ -134,13 +172,26 @@ class Overlay(QMainWindow):
         self.proc = process_helper.ProcessHelper()
         self.robot = manager.Manager()
 
+        # Resolution-aware positioning
+        screen_w, screen_h = _get_screen_geometry()
+        # Design for 1920×1080: window was at (1425, 825)
+        # 2560×1440: place at right side, centered vertically
+        if screen_w > 1920 or screen_h > 1080:
+            # Scale position proportionally
+            x = int(screen_w * 0.742)   # ~1900 on 2560
+            y = int(screen_h * 0.573)   # ~825 on 1440
+        else:
+            x = 1425
+            y = 825
+
         # Window setup
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setWindowIcon(QIcon(ICON_PATH))
+        if os.path.exists(ICON_PATH):
+            self.setWindowIcon(QIcon(ICON_PATH))
         QApplication.setStyle(QStyleFactory.create('Fusion'))
         self.setWindowTitle(self.name)
-        self.setGeometry(WINDOW_X, WINDOW_Y, WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.setGeometry(x, y, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setStyleSheet(STYLE)
 
@@ -175,10 +226,20 @@ class Overlay(QMainWindow):
         # Update status on startup
         self._update_status_ui()
 
-        # Hotkey setup
-        add_hotkey('end', lambda: self.on_press('exit'))
-        add_hotkey('del', lambda: self.on_press('pause'))
-        add_hotkey('capslock', lambda: self.on_press('pause'))
+        # Hotkey setup — keyboard module may fail, wrap safely
+        self._setup_hotkeys()
+
+    def _setup_hotkeys(self):
+        """Set up global hotkeys. Safe fallback if keyboard module fails."""
+        try:
+            from keyboard import add_hotkey
+            add_hotkey('end', lambda: self.on_press('exit'))
+            add_hotkey('del', lambda: self.on_press('pause'))
+            add_hotkey('capslock', lambda: self.on_press('pause'))
+            logging_helper.log_info("Hotkeys registered: END=stop, DEL/CAPS=pause")
+        except Exception as e:
+            logging_helper.log_error(f"Hotkey registration failed: {e}")
+            logging_helper.log_info("Hotkeys unavailable. Use GUI buttons to control.")
 
     # ── Class Selector ──────────────────────────────────────────────
     def update_class(self, idx):

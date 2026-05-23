@@ -42,6 +42,7 @@ a = Analysis(
         'pynput', 'pynput.keyboard', 'pynput.mouse',
         'pydirectinput',
         'pyautogui',
+        'pytweening',          # pyautogui dependency, silently crashes if missing
         'keyboard',
         'pywintypes', 'win32api', 'win32gui', 'win32con',
         'win32process', 'win32clipboard',
