@@ -335,10 +335,11 @@ def detect_lines(line_type: str = 'path') -> Optional[Tuple[int, int, int, int]]
     right, bottom = left + screen_w, top + screen_h
 
     try:
-        # Grab region and convert to RGB for processing
+        # Grab region and convert to BGR for OpenCV processing
+        # PIL gives RGB; OpenCV uses BGR internally
         img = ImageGrab.grab(bbox=(left, top, right, bottom))
         np_img = np.array(img)
-        rgb = cv2.cvtColor(np_img, cv2.COLOR_BGR2RGB)
+        rgb = cv2.cvtColor(np_img, cv2.COLOR_RGB2BGR)
         mask = cv2.inRange(rgb, cfg['lower'], cfg['upper'])
         edges = cv2.Canny(mask, 50, 150)
 
@@ -399,7 +400,7 @@ def locate_needle(
     conf: float = 0.7,
     loctype: str = 'l',
     grayscale: bool = True,
-    region: Tuple[int, int, int, int] = (525, 875, 1380, 1050)
+    region: Optional[Tuple[int, int, int, int]] = None
 ) -> Any:
     """
     Searches the haystack image or the screen for the needle image.
@@ -414,6 +415,12 @@ def locate_needle(
             logging_helper.log_debug(f"Found {context}: {needle} -> {result}")
         else:
             logging_helper.log_debug(f"Cannot find {context}: {needle}, conf={conf}, result={result}")
+
+    # Default region: bottom portion of screen (skill bar, potion, evade area)
+    # Computed dynamically so it works at all resolutions.
+    if region is None and haystack is None:
+        w, h = _detect_screen_size()
+        region = (int(w * 0.27), int(h * 0.81), int(w * 0.72), int(h * 0.18))
 
     try:
         if haystack:

@@ -178,12 +178,8 @@ def _is_low_health() -> bool:
                 return False
             return r > 90 and r > g * 2.0 and r > b * 2.0
 
-        red_pct = image_helper.region_match(
-            globe_x, globe_y, globe_w, globe_h,
-            is_health_red, min_pct=0.99, cols=6, rows=4)
-
-        # If region_match returns False, it means < 99% of pixels are red → check actual pct
-        # Actually, region_match returns bool. Let's do manual sampling for exact count.
+        # Sample health globe for red fill percentage.
+        # Low HP: less than 15% of globe area shows red (most is dark/empty).
         samples = image_helper.sample_region(globe_x, globe_y, globe_w, globe_h, 6, 4)
         if not samples:
             return False
