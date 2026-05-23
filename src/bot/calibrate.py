@@ -73,15 +73,19 @@ class AutoCalibrator:
     # ========== 逐项检测 ==========
 
     def detect_game_window(self) -> Dict:
-        """检测游戏窗口状态"""
+        """检测游戏窗口状态 — 高DPI/高分辨率下提高容差"""
         w, h = self.resolution
+        # Higher tolerance for 1440p+ displays where pixel colors may differ slightly
+        dpi_tol = 50 if w > 1920 else 30
 
         # 检测 HUD 可见性（技能栏在底部中央）
         skillbar_y = int(h * 0.92)
-        skillbar_visible = self._check_pixel(int(w * 0.5), skillbar_y, 50, 40, 35, 25)
+        skillbar_visible = self._check_pixel(int(w * 0.5), skillbar_y, 50, 40, 35, dpi_tol)
+        logging_helper.log_info(f"Skillbar check at ({int(w*0.5)}, {skillbar_y}): {skillbar_visible}")
 
         # 检测小地图位置（右上角）
-        minimap_visible = self._check_pixel(int(w * 0.92), int(h * 0.08), 30, 25, 20, 20)
+        minimap_visible = self._check_pixel(int(w * 0.92), int(h * 0.08), 30, 25, 20, dpi_tol)
+        logging_helper.log_info(f"Minimap check at ({int(w*0.92)}, {int(h*0.08)}): {minimap_visible}")
 
         return {
             'skillbar_visible': skillbar_visible,

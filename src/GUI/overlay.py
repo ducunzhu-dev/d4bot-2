@@ -385,12 +385,13 @@ class Overlay(QMainWindow):
     # ── Actions ─────────────────────────────────────────────────────
     def _start_bot(self):
         """Start the bot rotation thread."""
+        self.running = True
         if not hasattr(self, 'rotation_thread') or not self.rotation_thread.is_alive():
             self.rotation_thread = Thread(target=self._rotation_loop, daemon=True)
             self.rotation_thread.start()
-            self.btnStart.setEnabled(False)
-            self.btnStop.setEnabled(True)
-            self._update_status_ui()
+        self.btnStart.setEnabled(False)
+        self.btnStop.setEnabled(True)
+        self._update_status_ui()
 
     def _stop_bot(self):
         """Stop the bot rotation thread."""
@@ -430,11 +431,14 @@ class Overlay(QMainWindow):
     def _calibrate_thread(self):
         try:
             from bot.calibrate import run_calibration
-            run_calibration()
-            logging_helper.log_info("✅ Calibration complete! Coordinates saved.")
+            success = run_calibration()
+            if success:
+                logging_helper.log_info("✅ Calibration complete! Coordinates saved.")
+            else:
+                logging_helper.log_error("❌ Calibration failed: game window not detected")
+                logging_helper.log_error("Check: D4 running in windowed fullscreen? Standing in town?")
         except Exception as ex:
             logging_helper.log_error(f"❌ Calibration failed: {ex}")
-            logging_helper.log_error("Check: D4 running? 1920x1080 windowed fullscreen? In-game?")
 
     def _open_toolbox(self):
         """Open the toolbox for skill icon capture."""
