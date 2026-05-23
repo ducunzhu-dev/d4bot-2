@@ -63,7 +63,8 @@ class Manager:
         return self.pixel_match_check(conditions)
 
     def is_on_menu(self) -> bool:
-        conditions = [(74, 314, 235, 8, 2), (70, 302, 148, 10, 3)]
+        # FIX: Scaled for resolution — menu positions vary with DPI
+        conditions = [(scale_x(74), scale_y(314), 235, 8, 2), (scale_x(70), scale_y(302), 148, 10, 3)]
         return self.pixel_match_check(conditions)
 
     def is_on_loading(self) -> bool:
