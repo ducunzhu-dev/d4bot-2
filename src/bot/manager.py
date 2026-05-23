@@ -81,10 +81,6 @@ class Manager:
         conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (1, 1, 0, 0, 0)]
         return self.pixel_match_check(conditions)
 
-    def is_dead(self) -> bool:
-        conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (1, 1, 0, 0, 0)]
-        return self.pixel_match_check(conditions)
-
     def click_randomized(self, x: Optional[int] = None, y: Optional[int] = None,
                          jitter: Tuple[int, int, int, int] = (-5, 35, -5, 5), button: str = 'left') -> None:
         """Perform a randomized click action."""
@@ -228,6 +224,8 @@ class Manager:
 
             # === 模式切换 ===
             mode = self.cfg.get('mode', 'helltide')  # helltide / nmd / campaign
+            cls = self.cfg.get('class', '?')
+            logging_helper.log_info(f"game_manager tick: class={cls} mode={mode}")
 
             if self.is_on_menu():
                 logging_helper.log_info("Player is on menu. Starting game.")
@@ -285,6 +283,7 @@ class Manager:
                     return
 
                 # Wenn kein Mob gefunden
+                logging_helper.log_info("No target found — attempting movement")
                 if loot:
                     self.loot_process()
 
@@ -293,14 +292,17 @@ class Manager:
                     try:
                         moved = pather.move_to_ref_location()
                     except Exception as ex:
-                        logging_helper.log_debug("pather.move_to_ref_location error: %s" % ex)
+                        logging_helper.log_error("pather.move_to_ref_location error: %s" % ex)
 
                     if not moved:
                         # navigiere zur Truhe, falls Bewegung nicht moeglich
                         self.navigate_to_treasure()
                 return
 
-            # Sonstiger Zustand: warte kurz
+            # Not in game — log prominently so user knows why bot is idle
+            logging_helper.log_error(
+                "⚠️ Bot idle — not in game! Is D4 in windowed fullscreen and visible?"
+            )
             sleep(uniform(0.2, 0.5))
         except Exception as ex:
-            logging_helper.log_debug("game_manager unexpected error: %s" % ex)
+            logging_helper.log_error("💥 game_manager crashed: %s" % ex)

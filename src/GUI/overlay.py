@@ -265,6 +265,7 @@ class Overlay(QMainWindow):
         class_name = self.classCombo.currentText()
         logging_helper.log_info(f'Switched class to: {class_name}')
         config_helper.save_config('class', class_name)
+        self.cfg = config_helper.read_config()
 
     def createClassSelector(self):
         self.classGroup = QGroupBox("职业 Class")
@@ -288,9 +289,13 @@ class Overlay(QMainWindow):
 
     # ── Mode Selector ───────────────────────────────────────────────
     def update_mode(self, idx):
-        mode = self.modeCombo.currentText()
-        logging_helper.log_info(f'Switched mode to: {mode}')
-        config_helper.save_config('mode', mode.lower())
+        mode_display = self.modeCombo.currentText()
+        # Normalize to internal keys: helltide / nmd / campaign
+        mode_map = {'Helltide': 'helltide', 'Nightmare Dungeon': 'nmd', 'Campaign': 'campaign'}
+        mode_key = mode_map.get(mode_display, mode_display.lower())
+        logging_helper.log_info(f'Switched mode to: {mode_key}')
+        config_helper.save_config('mode', mode_key)
+        self.cfg = config_helper.read_config()
 
     def createModeSelector(self):
         self.modeGroup = QGroupBox("模式 Mode")
@@ -416,7 +421,7 @@ class Overlay(QMainWindow):
             try:
                 self.robot.game_manager()
             except Exception as ex:
-                logging_helper.log_debug("game_manager error: %s" % ex)
+                logging_helper.log_error("💥 bot main loop crashed: %s" % ex)
                 sleep(0.5)
 
         logging_helper.log_info("D4Bot stopped")
@@ -458,8 +463,10 @@ class Overlay(QMainWindow):
                 self.statusLabel.setText("⏸ 已暂停 - 按 DEL 继续")
                 self.statusLabel.setObjectName("statusPaused")
             else:
-                cls = self.cfg.get('class', '?')
-                mode = self.cfg.get('mode', '?')
+                # Read fresh config from file — self.cfg may be stale
+                cfg = config_helper.read_config() or {}
+                cls = cfg.get('class', '?')
+                mode = cfg.get('mode', '?')
                 self.statusLabel.setText(f"▶ 运行中 | {cls} | {mode}")
                 self.statusLabel.setObjectName("statusRunning")
         else:
