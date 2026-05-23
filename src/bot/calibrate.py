@@ -312,14 +312,16 @@ class AutoCalibrator:
 
         logging_helper.log_info("=== Starting Auto-Calibration ===")
 
-        # Step 1: 检测游戏窗口
+        # Step 1: 检测游戏窗口（仅警告，不阻塞——坐标按分辨率比例计算）
         game = self.detect_game_window()
         self.cal_data.update(game)
         if not game.get('game_active'):
-            logging_helper.log_error("Game not detected! Make sure D4 is running and in-game.")
-            logging_helper.log_error("Stand in town (not in menu/loading) and try again.")
-            return False
-        logging_helper.log_info("✓ Game window detected")
+            logging_helper.log_warning = logging_helper.log_info  # use info if warning not available
+            logging_helper.log_info("⚠ Game window not detected, but continuing anyway...")
+            logging_helper.log_info("  Coordinates are computed from resolution, not pixel scanning.")
+            logging_helper.log_info("  Make sure D4 is running in windowed fullscreen.")
+        else:
+            logging_helper.log_info("✓ Game window detected")
 
         # Step 2: 检测 UI 元素
         self.cal_data['ui'] = {}
