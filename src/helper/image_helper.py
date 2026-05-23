@@ -133,9 +133,12 @@ def get_image_at_coords(x: int, y: int, ix: int = 10, iy: int = 10, name: str = 
 def pixel_matches_color(x: int, y: int, exR: int, exG: int, exB: int, tolerance: int = 25) -> bool:
     """
     Check if a pixel matches the expected RGB color within a tolerance.
+    Uses PIL ImageGrab (same coordinate system as calibrator) to avoid
+    DPI-scaling mismatch that affects pyautogui on 1440p+ displays.
     """
     try:
-        r, g, b = pyautogui.screenshot().getpixel((int(x), int(y)))
+        from PIL import ImageGrab
+        r, g, b = ImageGrab.grab().getpixel((int(x), int(y)))
         return all(abs(int(actual) - int(expected)) <= int(tolerance)
                    for actual, expected in zip((r, g, b), (exR, exG, exB)))
     except Exception as ex:
