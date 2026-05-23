@@ -8,12 +8,12 @@ This log is the ONLY way to diagnose "double-click EXE → nothing happens".
 """
 
 import sys
-
-_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import os
 import traceback
 from datetime import datetime
 from pathlib import Path
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 
 # ═══════════════════════════════════════════════════════════════════
 # Phase 0: Startup log — WRITTEN BEFORE ANY DANGEROUS IMPORT

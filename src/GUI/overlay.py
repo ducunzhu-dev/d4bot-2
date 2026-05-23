@@ -3,10 +3,10 @@ D4Bot - Unified Control Panel
 Single window for class selection, mode control, calibration, and monitoring.
 """
 import sys
-
-_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 import os
 from pathlib import Path
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 from threading import Thread, Lock
 from time import sleep
 from PyQt5.QtCore import Qt
