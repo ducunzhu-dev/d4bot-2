@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pyinstaller
-          pip install numpy pyaml opencv-python pillow pyqt5 pyautogui pynput pydirectinput keyboard pywin32
+          pip install numpy PyYAML opencv-python pillow pyqt5 pyautogui pynput pydirectinput keyboard pywin32 pytweening
 
       - name: Build EXE
         run: pyinstaller --clean --noconfirm d4_bot.spec

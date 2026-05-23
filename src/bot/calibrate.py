@@ -18,8 +18,15 @@ from PIL import ImageGrab
 from helper import image_helper as ih
 from helper import logging_helper, config_helper
 
-CALIB_DIR = _ROOT / "config"
-CALIB_FILE = CALIB_DIR / "calibration.yaml"
+CALIB_DIR = (_ROOT / "config")  # Read from bundle
+# Write calibration next to EXE in frozen mode (MEIPASS is read-only)
+if getattr(sys, "frozen", False):
+    CALIB_WRITE_DIR = Path(sys.executable).parent / "config"
+else:
+    CALIB_WRITE_DIR = CALIB_DIR
+CALIB_FILE = CALIB_WRITE_DIR / "calibration.yaml"
+# Also check bundled location for reading
+CALIB_BUNDLED = CALIB_DIR / "calibration.yaml"
 
 # 模板图片目录（首次运行需用工具箱 F12 截图保存）
 TEMPLATES_DIR = _ROOT / "assets" / "templates"
@@ -355,26 +362,34 @@ class AutoCalibrator:
         return True
 
     def _save_calibration(self) -> None:
-        """写入 calibration.yaml"""
-        CALIB_DIR.mkdir(parents=True, exist_ok=True)
+        """写入 calibration.yaml — 在 frozen mode 写入 EXE 旁边"""
+        CALIB_WRITE_DIR.mkdir(parents=True, exist_ok=True)
         with open(CALIB_FILE, 'w', encoding='utf-8') as f:
             yaml.dump(self.cal_data, f, default_flow_style=False, allow_unicode=True)
         logging_helper.log_info(f"✓ Calibration saved to {CALIB_FILE}")
 
     @staticmethod
     def load_calibration() -> Dict:
-        """加载校准数据"""
-        if not CALIB_FILE.exists():
-            logging_helper.log_warning("No calibration file found. Run calibration first!")
-            # 返回默认1920×1080值
-            ac = AutoCalibrator()
-            ac.run_full_calibration()
-            return ac.cal_data
+        """加载校准数据 — 先读 writable dir，再回退 bundled"""
+        # Check writable location first (user may have recalibrated)
+        if CALIB_FILE.exists():
+            with open(CALIB_FILE, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            logging_helper.log_info(f"Loaded calibration from {CALIB_FILE}")
+            return data or {}
 
-        with open(CALIB_FILE, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-        logging_helper.log_info(f"Loaded calibration from {CALIB_FILE}")
-        return data or {}
+        # Fallback to bundled default
+        if CALIB_BUNDLED.exists():
+            with open(CALIB_BUNDLED, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            logging_helper.log_info(f"Loaded calibration from {CALIB_BUNDLED}")
+            return data or {}
+
+        logging_helper.log_info("No calibration file found. Run calibration first!")
+        # 返回默认1920×1080值
+        ac = AutoCalibrator()
+        ac.run_full_calibration()
+        return ac.cal_data
 
 
 def run_calibration() -> bool:

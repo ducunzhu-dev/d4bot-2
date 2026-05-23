@@ -9,27 +9,41 @@ _ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).
 from typing import Dict, Any, Optional
 import yaml
 
-CALIB_FILE = _ROOT / "config" / "calibration.yaml"
+# Priorität: writable (neben EXE) > bundled (MEIPASS) > empty
+if getattr(sys, "frozen", False):
+    _WRITABLE_CALIB = Path(sys.executable).parent / "config" / "calibration.yaml"
+else:
+    _WRITABLE_CALIB = _ROOT / "config" / "calibration.yaml"
+_BUNDLED_CALIB = _ROOT / "config" / "calibration.yaml"
 
 _cal_cache = None  # 单例缓存
 
 
 def load_calibration() -> Dict:
-    """加载校准数据（带缓存）"""
+    """加载校准数据（带缓存）— 先 writable 后 bundled"""
     global _cal_cache
     if _cal_cache is not None:
         return _cal_cache
 
-    if not CALIB_FILE.exists():
-        _cal_cache = {}
-        return _cal_cache
+    # Check writable first (user recalibrated)
+    if _WRITABLE_CALIB.exists():
+        try:
+            with open(_WRITABLE_CALIB, 'r', encoding='utf-8') as f:
+                _cal_cache = yaml.safe_load(f) or {}
+            return _cal_cache
+        except Exception:
+            pass
 
-    try:
-        with open(CALIB_FILE, 'r', encoding='utf-8') as f:
-            _cal_cache = yaml.safe_load(f) or {}
-    except Exception:
-        _cal_cache = {}
+    # Fallback to bundled
+    if _BUNDLED_CALIB.exists():
+        try:
+            with open(_BUNDLED_CALIB, 'r', encoding='utf-8') as f:
+                _cal_cache = yaml.safe_load(f) or {}
+            return _cal_cache
+        except Exception:
+            pass
 
+    _cal_cache = {}
     return _cal_cache
 
 

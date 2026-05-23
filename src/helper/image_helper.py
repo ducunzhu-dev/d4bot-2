@@ -8,6 +8,54 @@ from math import sqrt
 
 from helper import mouse_helper, logging_helper
 
+# ═══════════════════════════════════════════════════════════════════
+# Resolution scaling — all hardcoded coords are designed for 1920×1080
+# Automatically scaled to actual screen resolution
+# ═══════════════════════════════════════════════════════════════════
+_DESIGN_WIDTH = 1920
+_DESIGN_HEIGHT = 1080
+_screen_w = None
+_screen_h = None
+
+
+def _detect_screen_size():
+    """Detect primary monitor resolution. Cached after first call."""
+    global _screen_w, _screen_h
+    if _screen_w is not None:
+        return _screen_w, _screen_h
+    try:
+        import tkinter
+        root = tkinter.Tk()
+        _screen_w = root.winfo_screenwidth()
+        _screen_h = root.winfo_screenheight()
+        root.destroy()
+    except Exception:
+        try:
+            from PIL import ImageGrab
+            img = ImageGrab.grab()
+            _screen_w, _screen_h = img.size
+        except Exception:
+            _screen_w, _screen_h = _DESIGN_WIDTH, _DESIGN_HEIGHT
+    return _screen_w, _screen_h
+
+
+def scale_x(design_x: int) -> int:
+    """Scale an X coordinate from 1920 design to current resolution."""
+    w, _ = _detect_screen_size()
+    return int(design_x * w / _DESIGN_WIDTH)
+
+
+def scale_y(design_y: int) -> int:
+    """Scale a Y coordinate from 1080 design to current resolution."""
+    _, h = _detect_screen_size()
+    return int(design_y * h / _DESIGN_HEIGHT)
+
+
+def scale_region(design_region: tuple) -> tuple:
+    """Scale a (left, top, width, height) region to current resolution."""
+    left, top, w, h = design_region
+    return (scale_x(left), scale_y(top), scale_x(left + w) - scale_x(left), scale_y(top + h) - scale_y(top))
+
 
 def get_pixel_color_at_cursor() -> Tuple[int, int, int, int, int]:
     """
@@ -100,17 +148,17 @@ def detect_lines(line_type: str = 'path') -> Optional[Tuple[int, int, int, int]]
     Detect narrow, curved lines of a given type ('path' or 'mob') by specified RGB color on the screen.
     Returns absolute bounding box (x, y, w, h) of the closest matching contour or None.
     """
-    # RGB color ranges for different line types
+    # RGB color ranges for different line types — regions scale with resolution
     line_config = {
         'path': {
             'lower': np.array([254, 254, 254], dtype=np.uint8),
             'upper': np.array([255, 255, 255], dtype=np.uint8),
-            'screen_box': (600, 100, 1400, 900)  # left, top, width, height
+            'screen_box': scale_region((600, 100, 800, 800))  # left, top, width, height
         },
         'mob': {
             'lower': np.array([155, 37, 1], dtype=np.uint8),
             'upper': np.array([168, 38, 1], dtype=np.uint8),
-            'screen_box': (600, 100, 1400, 900)  # left, top, width, height
+            'screen_box': scale_region((600, 100, 800, 800))  # left, top, width, height
         }
     }
 
@@ -119,11 +167,13 @@ def detect_lines(line_type: str = 'path') -> Optional[Tuple[int, int, int, int]]
         return None
 
     cfg = line_config[line_type]
-    left, top, width, height = cfg['screen_box']
+    left, top, screen_w, screen_h = cfg['screen_box']
+    # PIL ImageGrab.grab(bbox) expects (left, top, right, bottom), not (left, top, width, height)
+    right, bottom = left + screen_w, top + screen_h
 
     try:
         # Grab region and convert to RGB for processing
-        img = ImageGrab.grab(bbox=(left, top, width, height))
+        img = ImageGrab.grab(bbox=(left, top, right, bottom))
         np_img = np.array(img)
         rgb = cv2.cvtColor(np_img, cv2.COLOR_BGR2RGB)
         mask = cv2.inRange(rgb, cfg['lower'], cfg['upper'])
@@ -133,8 +183,8 @@ def detect_lines(line_type: str = 'path') -> Optional[Tuple[int, int, int, int]]
         contours_info = cv2.findContours(edges.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = contours_info[0] if len(contours_info) == 2 else contours_info[1]
 
-        screen_center_x = left + (width // 2)
-        screen_center_y = top + (height // 2)
+        screen_center_x = left + (screen_w // 2)
+        screen_center_y = top + (screen_h // 2)
         min_distance = float('inf')
         closest_contour: Optional[Tuple[int, int, int, int]] = None
 

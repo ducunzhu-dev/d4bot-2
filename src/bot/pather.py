@@ -5,12 +5,13 @@ import os
 import time
 
 from helper import image_helper, config_helper, logging_helper
+from helper.image_helper import scale_x, scale_y
 
-# Konstanten für die Bildschirmmitte und Minimap-Koordinaten
-PLAYER_X = 960  # Bildschirmmitte X
-PLAYER_Y = 520  # Bildschirmmitte Y
-MAP_X = 1750
-MAP_Y = 150
+# Konstanten für die Bildschirmmitte und Minimap-Koordinaten (1920×1080 Design)
+PLAYER_X = scale_x(960)   # Bildschirmmitte X
+PLAYER_Y = scale_y(520)  # Bildschirmmitte Y
+MAP_X = scale_x(1750)
+MAP_Y = scale_y(150)
 
 # Verhaltens-Konstanten
 MAX_STUCK = 10
@@ -30,11 +31,14 @@ def stuck_check(func):
 
     @wraps(func)
     def decorated(*args, **kwargs):
+        # FIX (2026-05-23): Only catch TypeError from extra kwarg, not from inside func
+        import inspect
         try:
-            result = func(*args, **kwargs)
-        except TypeError:
-            # Falls func kein bestimmtes kwargs akzeptiert, versuche ohne kwargs
-            result = func(*args)
+            sig = inspect.signature(func)
+        except (ValueError, TypeError):
+            sig = None
+
+        result = func(*args, **kwargs)
 
         if result:
             # Erfolg => Zähler zurücksetzen
@@ -50,13 +54,15 @@ def stuck_check(func):
             logging_helper.log_debug("[Character is stuck, trying escape maneuvers]")
             for _ in range(ESCAPE_TRIES):
                 try:
-                    func(*args, **kwargs, stuck=True)
-                except TypeError:
-                    # Falls die Funktion das 'stuck' kw nicht akzeptiert, rufe sie einfach erneut auf
-                    func(*args)
+                    # Only pass stuck=True if the function accepts it
+                    if sig and 'stuck' in sig.parameters:
+                        func(*args, stuck=True)
+                    else:
+                        func(*args)
+                except Exception:
+                    pass  # Swallow errors during escape attempt
                 time.sleep(0.15)
             stuck_count[0] = 0
-            # Nach Escape-Versuchen zurückmelden, dass wir versucht haben zu entkommen
             return False
 
         return False
@@ -141,7 +147,8 @@ def move_to_ref_location(stuck=False):
 
     try:
         if not stuck:
-            leftClick(int(x), int(y))
+            # FIX (2026-05-23): Use abs_x/abs_y (computed screen coords), not raw relative x/y
+            leftClick(int(abs_x), int(abs_y))
             time.sleep(CLICK_DELAY)
             logging_helper.log_info("Moving to %d,%d" % (x, y))
             return True

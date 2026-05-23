@@ -14,6 +14,9 @@ from bot import pather, pickit, rotation, inventory, dungeon, campaign
 ASSETS_DIR = _ROOT / "assets"
 LOCATION_DIR = str(ASSETS_DIR / "location")
 
+# Resolutions-Skalierung
+from helper.image_helper import scale_x, scale_y, scale_region
+
 class Manager:
     def __init__(self) -> None:
         # Config beim Start laden; bei Bedarf kann reload_config() verwendet werden
@@ -56,7 +59,7 @@ class Manager:
             return False
 
     def is_on_landing(self) -> bool:
-        conditions = [(3, 2, 22, 30, 31), (491, 888, 18, 17, 18)]
+        conditions = [(scale_x(3), scale_y(2), 22, 30, 31), (scale_x(491), scale_y(888), 18, 17, 18)]
         return self.pixel_match_check(conditions)
 
     def is_on_menu(self) -> bool:
@@ -71,11 +74,15 @@ class Manager:
             return False
 
     def is_in_game(self) -> bool:
-        conditions = [(718, 984, 59, 75, 84), (1209, 966, 56, 76, 81)]
+        conditions = [(scale_x(718), scale_y(984), 59, 75, 84), (scale_x(1209), scale_y(966), 56, 76, 81)]
         return self.pixel_match_check(conditions)
 
     def is_dead(self) -> bool:
-        conditions = [(861, 941, 81, 15, 15), (1, 1, 0, 0, 0)]
+        conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (1, 1, 0, 0, 0)]
+        return self.pixel_match_check(conditions)
+
+    def is_dead(self) -> bool:
+        conditions = [(scale_x(861), scale_y(941), 81, 15, 15), (1, 1, 0, 0, 0)]
         return self.pixel_match_check(conditions)
 
     def click_randomized(self, x: Optional[int] = None, y: Optional[int] = None,
@@ -154,7 +161,7 @@ class Manager:
                 mouse_helper.mouseScroll(1)
                 sleep(uniform(0.2, 0.4))
 
-            screen_region = (50, 50, 1900, 870)
+            screen_region = scale_region((50, 50, 1900, 870))
             x, y = self._safe_locate(str(Path(LOCATION_DIR) / "treasure.png"),
                                      conf=0.8, loctype='c', region=screen_region)
 
@@ -174,8 +181,8 @@ class Manager:
                 self.key_press('m')
                 return True
             if self._safe_locate(str(Path(LOCATION_DIR) / "rakhatKeep.png"), conf=0.8, region=region)[0] != -1:
-                # feste Koordinate als Fallback
-                self.click_randomized(1097, 764, button='right')
+                # Scaled fallback: rahkat keep teleport
+                self.click_randomized(scale_x(1097), scale_y(764), button='right')
                 return True
             return self.search_helltide(region)
         except Exception as ex:
@@ -224,12 +231,12 @@ class Manager:
 
             if self.is_on_menu():
                 logging_helper.log_info("Player is on menu. Starting game.")
-                self.click_randomized(220, 710, button='left')
+                self.click_randomized(scale_x(220), scale_y(710), button='left')
                 return
 
             if self.is_dead():
                 logging_helper.log_info("Player is dead. Reviving.")
-                self.click_randomized(927, 948, button='left')
+                self.click_randomized(scale_x(927), scale_y(948), button='left')
                 self.wait_for_loading()
                 return
 

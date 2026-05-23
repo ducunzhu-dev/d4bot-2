@@ -35,7 +35,7 @@ a = Analysis(
     hiddenimports=[
         # PyQt5
         'PyQt5', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets',
-        'PyQt5.sip', 'PyQt5.QtNetwork',
+        'PyQt5.sip', 'PyQt5.QtNetwork', 'PyQt5.QtXml',
         # OpenCV
         'cv2', 'cv2.data',
         # Input
@@ -45,16 +45,29 @@ a = Analysis(
         'pytweening',          # pyautogui dependency, silently crashes if missing
         'keyboard',
         'pywintypes', 'win32api', 'win32gui', 'win32con',
-        'win32process', 'win32clipboard',
+        'win32process', 'win32clipboard', 'win32ui',
         # Data
         'numpy', 'numpy.core._methods', 'numpy.lib.format',
-        'PIL', 'PIL.Image', 'PIL.ImageDraw',
-        # Stdlib
+        'numpy.random', 'numpy.random.common',
+        'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageGrab',
+        # Stdlib / third-party
         'yaml', 'logging', 'queue', 'threading', 'json',
         'signal', 'collections', 'functools', 'math',
         'random', 'time', 'os', 'sys', 'ctypes',
-        # New modules
+        'pathlib', 'datetime', 'tempfile', 'io',
+        # All bot modules
+        'bot',
+        'bot.manager', 'bot.rotation', 'bot.pather', 'bot.pickit',
         'bot.inventory', 'bot.dungeon', 'bot.campaign', 'bot.calibrate', 'bot.calibration_loader',
+        # All helper modules
+        'helper',
+        'helper.config_helper', 'helper.logging_helper', 'helper.image_helper',
+        'helper.mouse_helper', 'helper.process_helper', 'helper.timer_helper',
+        'helper.recorder_helper', 'helper.humanizer', 'helper.skill_assigner',
+        # All GUI modules
+        'GUI', 'GUI.overlay', 'GUI.toolbox',
+        # tkinter for screen detection
+        'tkinter',
     ],
     hookspath=[],
     hooksconfig={},

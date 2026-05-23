@@ -17,20 +17,46 @@ class ConfigError(Exception):
 def _get_project_root() -> Path:
     """
     Get project root — works both dev and PyInstaller frozen bundle.
-    In frozen mode, config files are extracted to sys._MEIPASS.
+    In frozen mode, config is read from MEIPASS but written next to EXE.
     """
     if getattr(sys, 'frozen', False):
         return Path(sys._MEIPASS)
     else:
         return _ROOT  # src/helper -> src -> project root
 
+
+def _get_writable_config_dir() -> Path:
+    """
+    Get writable config directory.
+    In frozen mode: next to the EXE (MEIPASS is read-only).
+    In dev mode: project root / config.
+    """
+    if getattr(sys, 'frozen', False):
+        exe_dir = Path(sys.executable).parent
+        cfg_dir = exe_dir / "config"
+    else:
+        cfg_dir = _ROOT / "config"
+    return cfg_dir
+
 def get_file_path() -> str:
     """
-    Bestimmt den absoluten Pfad zur Konfigurationsdatei.
-    Erwartet die Datei unter <project_root>/config/config.yml.
+    Bestimmt den lesbaren Pfad zur Konfigurationsdatei.
+    Prüft zuerst im beschreibbaren Verzeichnis (neben EXE), dann im Bundle.
     """
-    config_dir = _get_project_root() / "config"
-    return str(config_dir / "config.yml")
+    writable = _get_writable_config_dir() / "config.yml"
+    if writable.exists():
+        return str(writable)
+    # Fallback to bundled default
+    bundled = _get_project_root() / "config" / "config.yml"
+    if bundled.exists():
+        return str(bundled)
+    # Neither exists — return writable path for creation
+    return str(writable)
+
+
+def _get_writable_config_path() -> str:
+    """Pfad zum beschreibbaren config.yml (neben EXE im frozen mode)."""
+    return str(_get_writable_config_dir() / "config.yml")
 
 def ensure_config_exists(default: Optional[Dict[str, Any]] = None) -> None:
     """
@@ -74,9 +100,10 @@ def read_config() -> Dict[str, Any]:
 def write_config(data: Dict[str, Any]) -> None:
     """
     Schreibt die komplette Konfiguration atomar in die config.yml.
+    In frozen mode: writes next to EXE (MEIPASS is read-only).
     Verwendet einen tempor�ren File und os.replace um teilgeschriebene Dateien zu vermeiden.
     """
-    config_path = Path(get_file_path())
+    config_path = Path(_get_writable_config_path())
     try:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         # safe_dump verwendet Standard-YAML-Dump, ensure unicode support

@@ -10,13 +10,15 @@ import os
 import logging
 
 from helper import image_helper, logging_helper
+from helper.image_helper import scale_region
 
 # Assets-Pfad (relativ zum Repo-Root, berechnet aus Dateiposition)
 ASSETS_DIR = _ROOT / "assets" / "pickit"
 IMAGE_DIR = str(ASSETS_DIR)
 
-# Konstante Einstellungen
-DEFAULT_REGION = (400, 50, 1500, 870)
+# Konstante Einstellungen — region scales with resolution
+_DESIGN_REGION = (400, 50, 1500, 870)
+DEFAULT_REGION = scale_region(_DESIGN_REGION)
 CLICK_PRE_DELAY = (0.05, 0.18)  # Wartezeit vor Klick (sek.)
 PICK_COOLDOWN = (1.5, 2.5)  # Wartezeit nach erfolgreichem Aufheben
 RANDOM_OFFSET = (-2, 18, -2, 2)  # Standard-Offsets für zufälligen Klick

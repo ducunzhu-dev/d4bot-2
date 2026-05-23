@@ -388,12 +388,17 @@ class InventoryManager:
 
 # 便捷函数 — 供 manager.py 调用
 
+_inv_mgr_instance = None
+
 def check_and_manage_inventory() -> bool:
     """
     检查背包状态，满则执行管理。
     返回 True 表示执行了管理，False 表示跳过。
     """
-    inv_mgr = InventoryManager()
+    global _inv_mgr_instance
+    if _inv_mgr_instance is None:
+        _inv_mgr_instance = InventoryManager()
+    inv_mgr = _inv_mgr_instance
     if inv_mgr.is_inventory_full():
         inv_mgr.run_inventory_cycle()
         return True

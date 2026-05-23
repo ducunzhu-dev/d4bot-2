@@ -82,15 +82,15 @@ def assign_single_skill(skill_img: str, slot: str) -> bool:
         # Try to find the skill icon in the skill tree area
         # Tree area is roughly the right 2/3 of the screen
         tree_region = (300, 100, 1500, 800)
-        result = image_helper.locate_needle(skill_path, conf=0.6, region=tree_region)
+        result = image_helper.locate_needle(skill_path, conf=0.6, loctype='c', region=tree_region)
 
-        if not result:
+        if not result or (result[0] == -1 and result[1] == -1):
             # Try scrolling the tree and searching again
             _scroll_tree()
             time.sleep(random.uniform(0.3, 0.5))
-            result = image_helper.locate_needle(skill_path, conf=0.6, region=tree_region)
+            result = image_helper.locate_needle(skill_path, conf=0.6, loctype='c', region=tree_region)
 
-        if not result:
+        if not result or (result[0] == -1 and result[1] == -1):
             logging_helper.log_debug(f"Skill icon {skill_img} not found in tree")
             return False
 

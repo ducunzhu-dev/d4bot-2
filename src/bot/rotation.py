@@ -10,6 +10,9 @@ from pydirectinput import keyDown, keyUp, press, leftClick, rightClick
 from helper import mouse_helper, image_helper, timer_helper, config_helper, logging_helper
 from helper.timer_helper import TIMER_STOPPED
 
+# Resolutions-Skalierung (alle Koordinaten sind 1920×1080 Design-Werte)
+from helper.image_helper import scale_x, scale_y
+
 # Skill-Assets relativ zum Projekt
 SKILLPATH = _ROOT / "assets" / "skills"
 
@@ -97,18 +100,18 @@ def check_target_type(x: Optional[int], y: Optional[int], n: int) -> Optional[st
         detect_mob = False
 
     try:
-        # Normal checks
-        if (image_helper.pixel_matches_color(801, 45, 107, 2, 1, 20) or
-            image_helper.pixel_matches_color(801, 45, 156, 65, 93, 20) or
-            image_helper.pixel_matches_color(801, 45, 231, 13, 9, 20) or
+        # Normal checks — FIX: scale coordinates for current resolution
+        if (image_helper.pixel_matches_color(scale_x(801), scale_y(45), 107, 2, 1, 20) or
+            image_helper.pixel_matches_color(scale_x(801), scale_y(45), 156, 65, 93, 20) or
+            image_helper.pixel_matches_color(scale_x(801), scale_y(45), 231, 13, 9, 20) or
             detect_mob):
             if x is not None and y is not None:
                 mouse_helper.move_smooth(x + 400 + n, y + 50 + (n * 2), 1)
             return 'normal'
 
         # Elite checks
-        if (image_helper.pixel_matches_color(710, 45, 162, 4, 4, 20) or
-            image_helper.pixel_matches_color(710, 45, 124, 71, 98, 20) or
+        if (image_helper.pixel_matches_color(scale_x(710), scale_y(45), 162, 4, 4, 20) or
+            image_helper.pixel_matches_color(scale_x(710), scale_y(45), 124, 71, 98, 20) or
             detect_mob):
             if x is not None and y is not None:
                 mouse_helper.move_smooth(x + 400 + (n * 3), y + 50 + (n * 6), 1)
@@ -125,9 +128,9 @@ def handle_health_and_evade(evade: str, pot: str) -> None:
     Hinweis: die Farbe-Checks sind projekt-spezifisch; bei Änderungen der UI anpassen.
     """
     try:
-        low_hp = not image_helper.pixel_matches_color(608, 980, 95, 10, 15, 45) and \
-                 not image_helper.pixel_matches_color(608, 972, 148, 14, 24, 45) and \
-                 not image_helper.pixel_matches_color(607, 978, 97, 29, 82, 45)
+        low_hp = not image_helper.pixel_matches_color(scale_x(608), scale_y(980), 95, 10, 15, 45) and \
+                 not image_helper.pixel_matches_color(scale_x(608), scale_y(972), 148, 14, 24, 45) and \
+                 not image_helper.pixel_matches_color(scale_x(607), scale_y(978), 97, 29, 82, 45)
 
         if low_hp:
             if locate_and_use_potion(pot):

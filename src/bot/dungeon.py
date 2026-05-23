@@ -125,11 +125,12 @@ class DungeonRunner:
         # 检测地城入口图标（红色菱形）
         dungeon_region = (200, 200, 1520, 680)
         try:
-            x, y = image_helper.locate_needle(
+            result = image_helper.locate_needle(
                 str(ASSETS_DIR / 'skills' / 'dungeon_entrance.png'),
-                conf=0.7, region=dungeon_region
+                conf=0.7, loctype='c', region=dungeon_region
             )
-            if x is not None and y is not None:
+            x, y = result
+            if x != -1 and y != -1:
                 rightClick(x, y)  # 右键传送/导航
                 sleep(uniform(0.5, 0.8))
                 press('tab')  # 关闭地图
@@ -202,12 +203,12 @@ class DungeonRunner:
         """在雕文祭坛升级雕文"""
         # 检测升级柱
         try:
-            pedestal_found = image_helper.locate_needle(
+            result = image_helper.locate_needle(
                 str(ASSETS_DIR / 'skills' / 'upgrade_pedestal.png'),
-                conf=0.7, region=GLYPH_ALTAR_REGION
+                conf=0.7, loctype='c', region=GLYPH_ALTAR_REGION
             )
-            if pedestal_found:
-                x, y = pedestal_found
+            if result[0] != -1 and result[1] != -1:
+                x, y = result
                 if x is not None and y is not None:
                     leftClick(x, y)
                     sleep(uniform(1.0, 1.5))

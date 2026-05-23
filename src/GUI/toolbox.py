@@ -1,18 +1,33 @@
 from os import listdir, path, makedirs
 from threading import Thread
-from keyboard import add_hotkey
 from PyQt5.QtGui import QIcon, QPixmap, QStandardItemModel, QStandardItem, QIntValidator
 from PyQt5.QtWidgets import (QApplication, QComboBox, QDialog, QGridLayout, QLineEdit,
                               QGroupBox, QHBoxLayout, QLabel, QPushButton, QStyleFactory)
+from pathlib import Path
+import sys
+
+_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
 
 from helper import recorder_helper, image_helper, config_helper, logging_helper
+
+# keyboard may fail to import on some Windows configs — delay to _setup_hotkeys()
+_add_hotkey_fn = None
+def _get_add_hotkey():
+    global _add_hotkey_fn
+    if _add_hotkey_fn is None:
+        try:
+            from keyboard import add_hotkey as ahk
+            _add_hotkey_fn = ahk
+        except Exception:
+            _add_hotkey_fn = False  # Sentinel: keyboard unavailable
+    return _add_hotkey_fn if _add_hotkey_fn is not False else None
 
 class Toolbox(QDialog):
     def __init__(self, parent=None):
         super(Toolbox, self).__init__(parent)
         self.running = False
         self.image_name = 'default'
-        self.image_path = '.\\assets\\skills\\'
+        self.image_path = str(_ROOT / 'assets' / 'skills' / '')
         self.abs_x_coord = 0
         self.abs_y_coord = 0
         self.x_coord = 10
@@ -26,9 +41,17 @@ class Toolbox(QDialog):
         self.cfg = config_helper.read_config()
         self.name = self.cfg.get('apptitle', 'notepad')
 
+        # PyInstaller-compatible asset paths
+        icon_path = str(_ROOT / 'assets' / 'layout' / 'mmorpg_helper.ico')
+        bg_path = str(_ROOT / 'assets' / 'layout' / 'mmorpg_helper_background.png')
+
         try:
-            self.setWindowIcon(QIcon('.\\assets\\layout\\mmorpg_helper.ico'))
-            self.pixmap = QPixmap('.\\assets\\layout\\mmorpg_helper_background.png')
+            if path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+            if path.exists(bg_path):
+                self.pixmap = QPixmap(bg_path)
+            else:
+                self.pixmap = QPixmap()
         except Exception as e:
             logging_helper.log_error(f"Error loading resources: {e}")
             self.pixmap = QPixmap()
@@ -42,10 +65,17 @@ class Toolbox(QDialog):
         self.label.setPixmap(self.pixmap)
         self.label.resize(self.pixmap.width(), self.pixmap.height())
 
-        add_hotkey('F12', lambda: self.on_press('image'))
-        add_hotkey('F11', lambda: self.on_press('coords'))
-        add_hotkey('F10', lambda: self.on_press('color'))
-        add_hotkey('end', lambda: self.on_press('exit'))
+        add_hotkey_fn = _get_add_hotkey()
+        if add_hotkey_fn:
+            try:
+                add_hotkey_fn('F12', lambda: self.on_press('image'))
+                add_hotkey_fn('F11', lambda: self.on_press('coords'))
+                add_hotkey_fn('F10', lambda: self.on_press('color'))
+                add_hotkey_fn('end', lambda: self.on_press('exit'))
+            except Exception as e:
+                logging_helper.log_error(f"Hotkey registration failed: {e}")
+        else:
+            logging_helper.log_info("keyboard module unavailable — toolbox hotkeys disabled")
 
         self.createImageCrop()
         self.createRecordBox()
